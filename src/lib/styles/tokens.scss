@@ -1,0 +1,212 @@
+// Design-system tokens → CSS custom properties.
+// Values come straight from .claude/colors.md, radius.md, shadows.md.
+// Light values are the defaults. Dark values apply in three situations:
+//   1. The user has not chosen a theme (no data-theme) AND their OS is dark
+//      → OS preference wins (this is the default behaviour).
+//   2. The user explicitly picked "system" AND their OS is dark.
+//   3. The user explicitly picked "dark" (data-theme='dark').
+// An explicit "light" (data-theme='light') always forces light, even on a dark OS.
+// Never hardcode hex in components — reference these.
+
+// All dark-mode overrides live in one mixin so we can apply them from several
+// selectors without duplication.
+@mixin dark-tokens {
+	--neutral-primary-soft: #101828;
+	--neutral-primary: #030712;
+	--neutral-primary-medium: #1e2939;
+	--neutral-secondary-soft: #101828;
+	--neutral-secondary: #030712;
+	--neutral-secondary-medium: #1e2939;
+	--neutral-tertiary-soft: #101828;
+	--neutral-tertiary: #1e2939;
+	--neutral-tertiary-medium: #333e4f;
+	--neutral-quaternary: #333e4f;
+
+	//--- Badge
+	--badge-pending: var(--neutral-quaternary);
+	--badge-success: var(--success-medium);
+
+	--success-soft: #002c22;
+	--success: #009966;
+	--success-medium: #004f3b;
+	--success-strong: #007a55;
+	--danger-soft: #4d0218;
+	--danger: #c70036;
+	--danger-medium: #8b0836;
+	--danger-strong: #a50036;
+	--warning-soft: #7c2d12;
+	--warning: #f97316;
+	--warning-medium: #7c2d12;
+	--warning-strong: #c2410c;
+
+	--dark: #1f2937;
+	--dark-strong: #374151;
+	--disabled: #1f2937;
+
+	--color-1-400: rgba(255, 255, 255, 0.12);
+	--color-1-700: rgba(0, 0, 0, 0.25);
+
+	--text-white: #ffffff;
+	--text-black: #111827;
+	--text-heading: #ffffff;
+	--text-body: #9ca3af;
+	--text-body-subtle: #9ca3af;
+	--fg-danger: #f43f5e;
+	--fg-success: #00ffb7;
+	--fg-disabled: #6b7280;
+
+	--border-muted: #111827;
+	--border-light: #414f63;
+	--border-default-subtle: #1e2330;
+	--border-default: #323f52;
+	--border-default-medium: #565e6b;
+	--border-default-strong: #4b5563;
+	--border-brand: #51a2ff;
+	--border-danger: #be123c;
+	--border-success: #065f46;
+}
+
+:root {
+	// --- Background: neutral ---
+	--neutral-primary-soft: #ffffff;
+	--neutral-primary: #ffffff;
+	--neutral-primary-medium: #ffffff;
+	--neutral-secondary-soft: #f9fafb;
+	--neutral-secondary: #f9fafb;
+	--neutral-secondary-medium: #f9fafb;
+	--neutral-tertiary-soft: #f3f4f6;
+	--neutral-tertiary: #f3f4f6;
+	--neutral-tertiary-medium: #f3f4f6;
+	--neutral-quaternary: #e5e7eb;
+
+	// --- Background: brand ---
+	--brand-softest: #e6f5f0;
+	--brand-softer: #b7e7d2;
+	--brand-soft: #73caa3;
+	--brand: #00c569;
+	--brand-medium: #68cea0;
+	--brand-strong: #0b5332;
+
+	//--- Badge
+	--badge-pending: var(--neutral-quaternary);
+	--badge-success: var(--success-medium);
+	--badge-progress-fg: rgb(2, 120, 255);
+	--badge-progress-bg: #dbf1f8;
+
+	// --- Background: status ---
+	--success-soft: #ecfdf5;
+	--success: #007a55;
+	--success-medium: #d0fae5;
+	--success-strong: #006045;
+	--danger-soft: #fef0f2;
+	--danger: #c70036;
+	--danger-medium: #ffe4e6;
+	--danger-strong: #a50036;
+	--warning-soft: #fff7ed;
+	--warning: #f97316;
+	--warning-medium: #ffedd5;
+	--warning-strong: #c2410c;
+
+	// --- Utility ---
+	--dark: #1f2937;
+	--dark-strong: #111827;
+	--disabled: #f3f4f6;
+
+	// --- Button glint ---
+	--color-1-400: rgba(255, 255, 255, 0.25);
+	--color-1-700: rgba(0, 0, 0, 0.12);
+
+	// --- Text ---
+	--text-white: #ffffff;
+	--text-black: #111827;
+	--text-heading: #111827;
+	--text-body: #4b5563;
+	--text-body-subtle: #6b7280;
+	--fg-brand: #05b160;
+	--fg-brand-strong: #006045;
+	--fg-danger: #be123c;
+	--fg-success: #047857;
+	--fg-disabled: #9ca3af;
+
+	// --- Borders ---
+	--border-muted: #f9fafb;
+	--border-light: #f3f4f6;
+	--border-default-subtle: #e5e7eb;
+	--border-default: #e5e7eb;
+	--border-default-medium: #e5e7eb;
+	--border-default-strong: #c0c1c2;
+	--border-brand: #05b160;
+	--border-danger: #be123c;
+	--border-success: #047857;
+
+	// --- Radius ---
+	--radius-sm: 4px;
+	--radius-base: 8px;
+	--radius-full: 9999px;
+
+	// --- Shadows ---
+	--shadow-2xs: 0 1px rgb(0 0 0 / 0.05);
+	--shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+	--shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+	--shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+	--shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+// Explicit dark choice — always dark, whatever the OS says.
+:root[data-theme='dark'] {
+	@include dark-tokens;
+}
+
+// System / no choice — follow the OS. An explicit "light" opts out of this.
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']):not([data-theme='dark']) {
+		@include dark-tokens;
+	}
+}
+
+.badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 12px;
+	font-size: 12px;
+	font-weight: 500;
+	white-space: nowrap;
+	border: 1px solid transparent;
+	border-radius: var(--radius-full);
+
+	// `--done` / `--active` / `--upcoming` are aliases of success / progress / gray,
+	// used by the portal's `badge--{nodeState}` markup (done / active / upcoming).
+	&--success,
+	&--done {
+		color: var(--fg-success);
+		background-color: var(--badge-success);
+	}
+
+	&--progress,
+	&--active {
+		color: var(--badge-progress-fg);
+		background-color: var(--badge-progress-bg);
+	}
+
+	&--waiting {
+		color: var(--fg-danger);
+		background-color: var(--danger-soft);
+	}
+
+	&--review {
+		color: var(--warning-strong);
+		background-color: var(--warning-soft);
+	}
+
+	&--open {
+		color: var(--warning-strong);
+		background-color: var(--warning-soft);
+	}
+
+	&--gray,
+	&--upcoming {
+		color: var(--text-heading);
+		background-color: var(--badge-pending);
+	}
+}

@@ -1,0 +1,45 @@
+@use './lib/styles/tokens.scss';
+@use './lib/styles/portal.scss';
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	font-family:
+		'Inter',
+		system-ui,
+		-apple-system,
+		'Segoe UI',
+		sans-serif;
+	background-color: var(--neutral-secondary-soft);
+	color: var(--text-body);
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+// Shared loading spinner for async controls (non-negotiable rule 3).
+@keyframes cj-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+// Shared shimmer for skeleton loaders (Skeleton.svelte).
+@keyframes cj-shimmer {
+	0% {
+		background-position: 100% 50%;
+	}
+
+	100% {
+		background-position: 0 50%;
+	}
+}

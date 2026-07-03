@@ -1,0 +1,100 @@
+// Shared chrome for the client journey, rendered identically by the logged-in
+// portal (`.portal` shell) and the login-less public view (`.public` shell).
+// Both shells wrap their page content, so scoping every rule under
+// `.portal, .public` keeps these styles off the admin side entirely — the one
+// place to change portal/public card, back-link, empty-state and button looks.
+
+.portal,
+.public {
+	.card {
+		background-color: var(--neutral-primary-soft);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-base);
+		box-shadow: var(--shadow-xs);
+	}
+
+	// Back link at the top of a milestone detail page.
+	.page__back {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin-bottom: 20px;
+		font-size: 14px;
+		color: var(--text-body);
+		text-decoration: none;
+
+		&:hover {
+			color: var(--text-heading);
+		}
+
+		i {
+			font-size: 18px;
+		}
+	}
+
+	// Centered empty / error / not-found panel.
+	.state {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+		padding: 64px 24px;
+		text-align: center;
+		background-color: var(--neutral-primary-soft);
+		border: 1px dashed var(--border-default-strong);
+		border-radius: var(--radius-base);
+
+		&__icon {
+			font-size: 32px;
+			color: var(--text-body-subtle);
+		}
+
+		&__text {
+			margin: 0;
+			max-width: 380px;
+			font-size: 14px;
+			line-height: 1.6;
+			color: var(--text-body);
+		}
+	}
+
+	// Secondary button used by the state panels (retry / back).
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		padding: 10px 16px;
+		font-family: inherit;
+		font-size: 14px;
+		font-weight: 500;
+		border: 1px solid transparent;
+		border-radius: var(--radius-base);
+		cursor: pointer;
+		text-decoration: none;
+		transition: background-color 200ms;
+
+		&--secondary {
+			color: var(--text-body);
+			background-color: var(--neutral-secondary-medium);
+			border-color: var(--border-default-medium);
+			box-shadow: var(--shadow-xs);
+
+			&:hover {
+				color: var(--text-heading);
+				background-color: var(--neutral-tertiary-medium);
+			}
+
+			&:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 4px var(--neutral-tertiary);
+			}
+		}
+	}
+
+	@media (max-width: 640px) {
+		.page__back {
+			margin-bottom: 16px;
+		}
+	}
+}
