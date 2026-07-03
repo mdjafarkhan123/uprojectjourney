@@ -37,6 +37,7 @@ export const load: LayoutServerLoad = async ({ params, depends }) => {
 	depends('public:journey');
 
 	const { data, error: rpcError } = await supabaseAnon.rpc('get_public_journey', {
+		p_username: params.username,
 		p_slug: params.slug
 	});
 

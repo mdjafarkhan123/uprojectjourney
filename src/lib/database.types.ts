@@ -329,7 +329,7 @@ export type Database = {
 			[_ in never]: never;
 		};
 		Functions: {
-			get_public_journey: { Args: { p_slug: string }; Returns: Json };
+			get_public_journey: { Args: { p_username: string; p_slug: string }; Returns: Json };
 			is_slug_available: {
 				Args: { p_project_id: string; p_slug: string };
 				Returns: boolean;

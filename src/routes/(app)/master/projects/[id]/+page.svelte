@@ -158,8 +158,13 @@
 	let slugCheckTimer: ReturnType<typeof setTimeout> | null = null;
 	let copied = $state(false);
 
+	// The admin's login username namespaces every public link: /p/<username>/<slug>.
+	const adminUsername = $derived(page.data.user?.username ?? '');
+
 	// The full shareable URL, shown as a preview and used by the copy button.
-	const shareUrl = $derived(pSlug ? `${page.url.origin}/p/${pSlug}` : '');
+	const shareUrl = $derived(
+		pSlug && adminUsername ? `${page.url.origin}/p/${adminUsername}/${pSlug}` : ''
+	);
 
 	// Locally validate the slug format (matches the DB + API rules) before we bother
 	// the server with an availability check.
@@ -929,7 +934,7 @@
 			<div class="form__field share__field">
 				<label class="form__label" for="edit-project-slug">Public link</label>
 				<div class="share__row">
-					<span class="share__prefix">/p/</span>
+					<span class="share__prefix">/p/{adminUsername}/</span>
 					<input
 						id="edit-project-slug"
 						class="form__input share__input"

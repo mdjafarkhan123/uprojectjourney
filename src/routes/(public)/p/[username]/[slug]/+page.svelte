@@ -6,7 +6,8 @@
 	let { data } = $props();
 
 	// Milestone links point back into the public path (not the portal's `/milestones`).
-	const milestoneHref = (id: string) => resolve(`/p/${page.params.slug}/milestones/${id}`);
+	const milestoneHref = (id: string) =>
+		resolve(`/p/${page.params.username}/${page.params.slug}/milestones/${id}`);
 </script>
 
 <svelte:head>

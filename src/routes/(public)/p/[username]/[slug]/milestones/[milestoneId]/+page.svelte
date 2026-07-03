@@ -13,7 +13,7 @@
 		return index >= 0 ? { milestone: data.journey.milestones[index], index } : null;
 	});
 
-	const backHref = $derived(resolve(`/p/${page.params.slug}`));
+	const backHref = $derived(resolve(`/p/${page.params.username}/${page.params.slug}`));
 </script>
 
 <svelte:head>

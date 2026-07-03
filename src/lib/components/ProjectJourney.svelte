@@ -485,8 +485,8 @@
 		&__time {
 			flex-shrink: 0;
 			margin-left: auto;
-			font-size: 12px;
-			font-weight: 500;
+			font-size: 15px;
+			font-weight: 600;
 			white-space: nowrap;
 			color: var(--text-body-subtle);
 		}
