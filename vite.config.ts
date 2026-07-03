@@ -1,4 +1,4 @@
-import adapter from '@sveltejs/adapter-auto';
+import adapter from '@sveltejs/adapter-vercel';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vite';
@@ -17,9 +17,8 @@ export default defineConfig({
 				experimental: { async: true }
 			},
 
-			// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-			// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-			// See https://svelte.dev/docs/kit/adapters for more information about adapters.
+			// Deploying to Vercel, so use the Vercel adapter explicitly.
+			// See https://svelte.dev/docs/kit/adapter-vercel for options (runtime, regions, etc.).
 			adapter: adapter(),
 			experimental: { remoteFunctions: true, handleRenderingErrors: true }
 		})

@@ -3,21 +3,14 @@
 	import { resolve } from '$app/paths';
 	import Button from '$lib/components/Button.svelte';
 
-	type Props = {
-		intent: 'admin' | 'client';
-		heading: string;
-		subheading: string;
-	};
-
-	let { intent, heading, subheading }: Props = $props();
-
-	// Admins may enter a username or an email; clients only have a username.
-	const identifierLabel = $derived(intent === 'admin' ? 'Username or email' : 'Username');
-
-	let identifier = $state('');
+	let fullName = $state('');
+	let email = $state('');
+	let username = $state('');
 	let password = $state('');
 	let loading = $state(false);
 	let errorMessage = $state('');
+	// Per-field errors returned by the API (e.g. taken username/email).
+	let fieldErrors = $state<Record<string, string[]>>({});
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
@@ -25,17 +18,19 @@
 
 		loading = true;
 		errorMessage = '';
+		fieldErrors = {};
 
 		try {
-			const res = await fetch('/api/auth/login', {
+			const res = await fetch('/api/auth/signup', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ identifier, password, intent })
+				body: JSON.stringify({ fullName, email, username, password })
 			});
 
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
 				errorMessage = data.message ?? 'Something went wrong. Please try again.';
+				fieldErrors = data.errors ?? {};
 				loading = false;
 				return;
 			}
@@ -49,53 +44,99 @@
 	}
 </script>
 
-<div class="login">
-	<div class="login__card">
-		<header class="login__header">
-			<h1 class="login__heading">{heading}</h1>
-			<p class="login__subheading">{subheading}</p>
+<div class="signup">
+	<div class="signup__card">
+		<header class="signup__header">
+			<h1 class="signup__heading">Create your admin account</h1>
+			<p class="signup__subheading">Set up your workspace to manage projects and clients.</p>
 		</header>
 
 		{#if errorMessage}
-			<div class="login__alert" role="alert">
-				<i class="ri-error-warning-line login__alert-icon" aria-hidden="true"></i>
+			<div class="signup__alert" role="alert">
+				<i class="ri-error-warning-line signup__alert-icon" aria-hidden="true"></i>
 				<span>{errorMessage}</span>
 			</div>
 		{/if}
 
-		<form class="login__form" onsubmit={submit} novalidate>
-			<div class="login__field">
-				<label class="login__label" for="identifier">{identifierLabel}</label>
-				<div class="login__input-wrap">
-					<i class="ri-user-line login__input-icon" aria-hidden="true"></i>
+		<form class="signup__form" onsubmit={submit} novalidate>
+			<div class="signup__field">
+				<label class="signup__label" for="fullName">Full name</label>
+				<div class="signup__input-wrap">
+					<i class="ri-user-line signup__input-icon" aria-hidden="true"></i>
 					<input
-						id="identifier"
-						class="login__input"
+						id="fullName"
+						class="signup__input"
 						type="text"
-						name="identifier"
-						autocomplete="username"
-						bind:value={identifier}
+						name="fullName"
+						autocomplete="name"
+						bind:value={fullName}
 						disabled={loading}
 						required
 					/>
 				</div>
+				{#if fieldErrors.fullName?.length}
+					<p class="signup__field-error">{fieldErrors.fullName[0]}</p>
+				{/if}
 			</div>
 
-			<div class="login__field">
-				<label class="login__label" for="password">Password</label>
-				<div class="login__input-wrap">
-					<i class="ri-lock-2-line login__input-icon" aria-hidden="true"></i>
+			<div class="signup__field">
+				<label class="signup__label" for="email">Email</label>
+				<div class="signup__input-wrap">
+					<i class="ri-mail-line signup__input-icon" aria-hidden="true"></i>
+					<input
+						id="email"
+						class="signup__input"
+						type="email"
+						name="email"
+						autocomplete="email"
+						bind:value={email}
+						disabled={loading}
+						required
+					/>
+				</div>
+				{#if fieldErrors.email?.length}
+					<p class="signup__field-error">{fieldErrors.email[0]}</p>
+				{/if}
+			</div>
+
+			<div class="signup__field">
+				<label class="signup__label" for="username">Username</label>
+				<div class="signup__input-wrap">
+					<i class="ri-at-line signup__input-icon" aria-hidden="true"></i>
+					<input
+						id="username"
+						class="signup__input"
+						type="text"
+						name="username"
+						autocomplete="username"
+						bind:value={username}
+						disabled={loading}
+						required
+					/>
+				</div>
+				{#if fieldErrors.username?.length}
+					<p class="signup__field-error">{fieldErrors.username[0]}</p>
+				{/if}
+			</div>
+
+			<div class="signup__field">
+				<label class="signup__label" for="password">Password</label>
+				<div class="signup__input-wrap">
+					<i class="ri-lock-2-line signup__input-icon" aria-hidden="true"></i>
 					<input
 						id="password"
-						class="login__input"
+						class="signup__input"
 						type="password"
 						name="password"
-						autocomplete="current-password"
+						autocomplete="new-password"
 						bind:value={password}
 						disabled={loading}
 						required
 					/>
 				</div>
+				{#if fieldErrors.password?.length}
+					<p class="signup__field-error">{fieldErrors.password[0]}</p>
+				{/if}
 			</div>
 
 			<Button
@@ -103,25 +144,23 @@
 				size="lg"
 				type="submit"
 				fullWidth
-				icon="ri-login-box-line"
+				icon="ri-user-add-line"
 				{loading}
-				loadingLabel="Signing in…"
+				loadingLabel="Creating account…"
 			>
-				Sign in
+				Create account
 			</Button>
 		</form>
 
-		{#if intent === 'admin'}
-			<p class="login__aside">
-				Don't have an account?
-				<a class="login__link" href={resolve('/master/signup')}>Create one</a>
-			</p>
-		{/if}
+		<p class="signup__aside">
+			Already have an account?
+			<a class="signup__link" href={resolve('/master')}>Sign in</a>
+		</p>
 	</div>
 </div>
 
 <style lang="scss">
-	.login {
+	.signup {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -259,6 +298,12 @@
 				color: var(--fg-disabled);
 				cursor: not-allowed;
 			}
+		}
+
+		&__field-error {
+			margin: 6px 0 0;
+			font-size: 13px;
+			color: var(--fg-danger);
 		}
 	}
 </style>

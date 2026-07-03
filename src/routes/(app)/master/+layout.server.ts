@@ -5,7 +5,8 @@ import type { LayoutServerLoad } from './$types';
 // when logged out. Every deeper route is admin-only — belt-and-suspenders with the
 // hooks guard. locals.user carries no secrets, so it's safe to hand to the shell.
 export const load: LayoutServerLoad = async ({ locals, url }) => {
-	if (url.pathname !== '/master' && locals.user?.role !== 'admin') {
+	const publicPaths = url.pathname === '/master' || url.pathname === '/master/signup';
+	if (!publicPaths && locals.user?.role !== 'admin') {
 		redirect(303, '/master');
 	}
 	return { user: locals.user };

@@ -27,9 +27,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	// Route guard: the admin area beyond the login page requires an admin.
-	// `/master` itself is the public admin login page.
+	// `/master` (login) and `/master/signup` (signup) are the public admin pages.
 	const { pathname } = event.url;
-	if (pathname.startsWith('/master/') && event.locals.user?.role !== 'admin') {
+	if (
+		pathname.startsWith('/master/') &&
+		pathname !== '/master/signup' &&
+		event.locals.user?.role !== 'admin'
+	) {
 		redirect(303, '/master');
 	}
 

@@ -6,7 +6,9 @@ import { verifyPassword } from '$lib/server/password';
 import { createSession, SESSION_COOKIE } from '$lib/server/session';
 
 const loginSchema = z.object({
-	username: z.string().trim().min(1).max(64),
+	// Admins may sign in with either their username or their email; clients only
+	// ever have a username. We branch on the presence of "@" to pick the column.
+	identifier: z.string().trim().min(1).max(255),
 	password: z.string().min(1).max(256),
 	// Which login surface the request came from. The user's actual role must
 	// match, so a client can't sign in through the admin page or vice versa.
@@ -28,13 +30,15 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	if (!parsed.success) {
 		return json({ message: 'Invalid request body.' }, { status: 400 });
 	}
-	const { username, password, intent } = parsed.data;
+	const { identifier, password, intent } = parsed.data;
 
-	const { data: user, error } = await supabaseAdmin
-		.from('users')
-		.select('id, role, status, password_hash')
-		.eq('username', username)
-		.maybeSingle();
+	// An "@" means it can only be an email (usernames are restricted to
+	// letters/numbers/. _ -). Emails are stored and indexed case-insensitively.
+	const byEmail = identifier.includes('@');
+	const query = supabaseAdmin.from('users').select('id, role, status, password_hash');
+	const { data: user, error } = await (
+		byEmail ? query.eq('email', identifier.toLowerCase()) : query.eq('username', identifier)
+	).maybeSingle();
 
 	if (error) {
 		console.error('[login] user lookup failed:', error);
