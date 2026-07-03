@@ -1,6 +1,12 @@
 node_modules
-.claude
-.gemini
+.claude/
+.gemini/
+CLAUDE.md 
+AGENTS.md
+GEMINI.md
+PLAN.md
+PRODUCT.md
+reference/
 
 # Output
 .output

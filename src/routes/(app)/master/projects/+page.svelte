@@ -4,6 +4,7 @@
 	import { Select } from 'bits-ui';
 	import Modal from '$lib/components/Modal.svelte';
 	import Skeleton from '$lib/components/Skeleton.svelte';
+	import DatePicker from '$lib/components/DatePicker.svelte';
 	import { query } from '$lib/data/cache.svelte';
 	import { PROJECT_TEMPLATES, type TemplateKey } from '$lib/templates';
 
@@ -46,9 +47,22 @@
 	let name = $state('');
 	let templateKey = $state<TemplateKey | ''>('');
 	let clientId = $state('');
+	let createdAt = $state<string | null>(null);
 	let creating = $state(false);
 	let createError = $state('');
-	let fieldErrors = $state<{ name?: string; templateKey?: string; clientId?: string }>({});
+	let fieldErrors = $state<{
+		name?: string;
+		templateKey?: string;
+		clientId?: string;
+		createdAt?: string;
+	}>({});
+
+	// Local "today" as an ISO date ("yyyy-mm-dd"), used to pre-fill the picker.
+	function todayIso(): string {
+		const d = new Date();
+		const pad = (n: number) => String(n).padStart(2, '0');
+		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+	}
 
 	const templateItems = PROJECT_TEMPLATES.map((t) => ({ value: t.key, label: t.label }));
 	const activeClients = $derived((clientsQ.data ?? []).filter((c) => c.status === 'active'));
@@ -63,6 +77,7 @@
 		name = '';
 		templateKey = '';
 		clientId = '';
+		createdAt = todayIso();
 		createError = '';
 		fieldErrors = {};
 		createOpen = true;
@@ -87,7 +102,12 @@
 			const res = await fetch('/api/projects', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ name, clientId, templateKey })
+				body: JSON.stringify({
+					name,
+					clientId,
+					templateKey,
+					...(createdAt ? { createdAt } : {})
+				})
 			});
 
 			const payload = await res.json().catch(() => ({}));
@@ -97,7 +117,8 @@
 				fieldErrors = {
 					name: errs.name?.[0],
 					templateKey: errs.templateKey?.[0],
-					clientId: errs.clientId?.[0]
+					clientId: errs.clientId?.[0],
+					createdAt: errs.createdAt?.[0]
 				};
 				createError = payload.message ?? 'Something went wrong. Please try again.';
 				creating = false;
@@ -110,6 +131,78 @@
 		} catch {
 			createError = 'Could not reach the server. Please try again.';
 			creating = false;
+		}
+	}
+
+	// --- Create client sub-flow (from inside the project modal) ---
+	// Lets the admin add a client without leaving the "New project" flow. We close
+	// the project modal, open the client modal, then reopen the project modal with
+	// the typed project fields still intact and the new client pre-selected.
+	let clientCreateOpen = $state(false);
+	let cFullName = $state('');
+	let cUsername = $state('');
+	let cPassword = $state('');
+	let cCreating = $state(false);
+	let cCreateError = $state('');
+	let cFieldErrors = $state<{ fullName?: string; username?: string; password?: string }>({});
+
+	function openClientCreate() {
+		cFullName = '';
+		cUsername = '';
+		cPassword = '';
+		cCreateError = '';
+		cFieldErrors = {};
+		createOpen = false;
+		clientCreateOpen = true;
+	}
+
+	function closeClientCreate() {
+		if (cCreating) return;
+		clientCreateOpen = false;
+		// Return to the project form, preserving whatever was already typed.
+		createOpen = true;
+	}
+
+	async function submitClientCreate(event: SubmitEvent) {
+		event.preventDefault();
+		if (cCreating) return;
+
+		cCreating = true;
+		cCreateError = '';
+		cFieldErrors = {};
+
+		try {
+			const res = await fetch('/api/clients', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ fullName: cFullName, username: cUsername, password: cPassword })
+			});
+
+			const payload = await res.json().catch(() => ({}));
+
+			if (!res.ok) {
+				const errs = payload.errors ?? {};
+				cFieldErrors = {
+					fullName: errs.fullName?.[0],
+					username: errs.username?.[0],
+					password: errs.password?.[0]
+				};
+				cCreateError = payload.message ?? 'Something went wrong. Please try again.';
+				cCreating = false;
+				return;
+			}
+
+			const newClient = payload.client as Client;
+			// Shared cache with the Clients page — patch it so the client shows everywhere.
+			clientsQ.set((cur) => [newClient, ...(cur ?? [])]);
+			// Pre-select the new client and hand control back to the project form.
+			clientId = newClient.id;
+			cCreating = false;
+			clientCreateOpen = false;
+			createOpen = true;
+		} catch {
+			cCreateError = 'Could not reach the server. Please try again.';
+			cCreating = false;
 		}
 	}
 
@@ -373,7 +466,24 @@
 		<div class="form__field">
 			<span class="form__label" id="create-project-client-label">Client</span>
 			{#if clientItems.length === 0}
-				<p class="form__hint">You have no active clients yet. Add one on the Clients page first.</p>
+				<div class="callout">
+					<i class="ri-user-add-line callout__icon" aria-hidden="true"></i>
+					<div class="callout__body">
+						<p class="callout__text">
+							You need an active client before you can create a project. Add one here — you won't
+							lose what you've filled in.
+						</p>
+						<button
+							class="btn btn--brand btn--sm"
+							type="button"
+							onclick={openClientCreate}
+							disabled={creating}
+						>
+							<i class="ri-add-line" aria-hidden="true"></i>
+							<span>Create a client</span>
+						</button>
+					</div>
+				</div>
 			{:else}
 				<Select.Root
 					type="single"
@@ -415,6 +525,22 @@
 				<p class="form__error">{fieldErrors.clientId}</p>
 			{/if}
 		</div>
+
+		<div class="form__field">
+			<label class="form__label" for="create-project-created-at">Creation date</label>
+			<DatePicker
+				id="create-project-created-at"
+				value={createdAt}
+				onChange={(v) => (createdAt = v)}
+				disabled={creating}
+				ariaLabel="Project creation date"
+			/>
+			{#if fieldErrors.createdAt}
+				<p class="form__error">{fieldErrors.createdAt}</p>
+			{:else}
+				<p class="form__hint">Defaults to today. Set an earlier date to backdate the project.</p>
+			{/if}
+		</div>
 	</form>
 
 	{#snippet footer()}
@@ -433,6 +559,100 @@
 			{:else}
 				<i class="ri-add-line" aria-hidden="true"></i>
 				<span>Create project</span>
+			{/if}
+		</button>
+	{/snippet}
+</Modal>
+
+<!-- Create client (from the project flow) -->
+<Modal open={clientCreateOpen} title="New client" onclose={closeClientCreate}>
+	<form id="create-client-inline-form" class="form" onsubmit={submitClientCreate} novalidate>
+		{#if cCreateError}
+			<div class="form__alert" role="alert">
+				<i class="ri-error-warning-line" aria-hidden="true"></i>
+				<span>{cCreateError}</span>
+			</div>
+		{/if}
+
+		<div class="form__field">
+			<label class="form__label" for="create-client-fullname">Full name</label>
+			<input
+				id="create-client-fullname"
+				class="form__input"
+				class:form__input--error={cFieldErrors.fullName}
+				type="text"
+				autocomplete="name"
+				bind:value={cFullName}
+				disabled={cCreating}
+				required
+			/>
+			{#if cFieldErrors.fullName}
+				<p class="form__error">{cFieldErrors.fullName}</p>
+			{/if}
+		</div>
+
+		<div class="form__field">
+			<label class="form__label" for="create-client-username">Username</label>
+			<input
+				id="create-client-username"
+				class="form__input"
+				class:form__input--error={cFieldErrors.username}
+				type="text"
+				autocomplete="off"
+				autocapitalize="none"
+				spellcheck="false"
+				bind:value={cUsername}
+				disabled={cCreating}
+				required
+			/>
+			{#if cFieldErrors.username}
+				<p class="form__error">{cFieldErrors.username}</p>
+			{:else}
+				<p class="form__hint">The client signs in with this. Letters, numbers, and . _ -</p>
+			{/if}
+		</div>
+
+		<div class="form__field">
+			<label class="form__label" for="create-client-password">Password</label>
+			<input
+				id="create-client-password"
+				class="form__input"
+				class:form__input--error={cFieldErrors.password}
+				type="password"
+				autocomplete="new-password"
+				bind:value={cPassword}
+				disabled={cCreating}
+				required
+			/>
+			{#if cFieldErrors.password}
+				<p class="form__error">{cFieldErrors.password}</p>
+			{:else}
+				<p class="form__hint">At least 8 characters.</p>
+			{/if}
+		</div>
+	</form>
+
+	{#snippet footer()}
+		<button
+			class="btn btn--secondary"
+			type="button"
+			onclick={closeClientCreate}
+			disabled={cCreating}
+		>
+			Back
+		</button>
+		<button
+			class="btn btn--brand"
+			type="submit"
+			form="create-client-inline-form"
+			disabled={cCreating}
+		>
+			{#if cCreating}
+				<span class="btn__spinner" aria-hidden="true"></span>
+				<span>Creating…</span>
+			{:else}
+				<i class="ri-add-line" aria-hidden="true"></i>
+				<span>Create client</span>
 			{/if}
 		</button>
 	{/snippet}
@@ -743,6 +963,36 @@
 			i {
 				font-size: 16px;
 			}
+		}
+	}
+
+	.callout {
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+		padding: 14px;
+		background-color: var(--neutral-secondary-soft);
+		border: 1px dashed var(--border-default-strong);
+		border-radius: var(--radius-base);
+
+		&__icon {
+			flex-shrink: 0;
+			font-size: 20px;
+			color: var(--fg-brand);
+		}
+
+		&__body {
+			display: flex;
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 10px;
+		}
+
+		&__text {
+			margin: 0;
+			font-size: 13px;
+			line-height: 1.5;
+			color: var(--text-body);
 		}
 	}
 

@@ -101,6 +101,7 @@
 
 	:global(.modal__footer) {
 		display: flex;
+		flex-wrap: wrap;
 		justify-content: flex-end;
 		gap: 12px;
 		padding: 16px 20px;

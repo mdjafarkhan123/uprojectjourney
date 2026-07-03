@@ -117,6 +117,8 @@ const patchSchema = z
 		// Note: project `status` is not settable — it is auto-derived from milestones
 		// on read (see deriveProjectStatus). The stored column is vestigial.
 		expectedDeliveryDate: z.iso.date().nullable().optional(),
+		// Manual creation date ("yyyy-mm-dd"). Not nullable — a project always has one.
+		createdAt: z.iso.date().optional(),
 		currentFocusTitle: z.string().trim().max(200).nullable().optional(),
 		currentFocusGoal: z.string().trim().max(500).nullable().optional(),
 		// Trim + lowercase up front; a blank string means "remove the public link".
@@ -203,6 +205,7 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 		name?: string;
 		client_id?: string;
 		expected_delivery_date?: string | null;
+		created_at?: string;
 		current_focus_title?: string | null;
 		current_focus_goal?: string | null;
 		public_slug?: string | null;
@@ -213,6 +216,7 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 	if (input.clientId !== undefined) update.client_id = input.clientId;
 	if (input.expectedDeliveryDate !== undefined)
 		update.expected_delivery_date = input.expectedDeliveryDate;
+	if (input.createdAt !== undefined) update.created_at = input.createdAt;
 	if (input.currentFocusTitle !== undefined)
 		update.current_focus_title = input.currentFocusTitle || null;
 	if (input.currentFocusGoal !== undefined)
@@ -225,7 +229,7 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 		.update(update)
 		.eq('id', id)
 		.select(
-			'id, name, client_id, status, expected_delivery_date, current_focus_title, current_focus_goal, public_slug, is_public, updated_at'
+			'id, name, client_id, status, expected_delivery_date, created_at, current_focus_title, current_focus_goal, public_slug, is_public, updated_at'
 		)
 		.maybeSingle();
 

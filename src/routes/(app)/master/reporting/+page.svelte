@@ -211,7 +211,7 @@
 		<div>
 			<h1 class="page__heading">Reporting</h1>
 			<p class="page__subheading">
-				How often your clients visit their portal — and how long they stay.
+				How often your clients visit their portal and how long they stay.
 			</p>
 		</div>
 		<div class="range" role="group" aria-label="Date range">

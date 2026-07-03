@@ -39,9 +39,12 @@
 	const stepCount = $derived(project.milestones.length);
 	const countdown = $derived(deliveryCountdown(project));
 
-	// The single freshest client-visible change across the whole journey (the newest of
-	// every milestone's `updated_at`). Shown once beside the journey heading instead of
-	// on each node.
+	// One freshness timestamp for the whole journey, shared by BOTH the overview's
+	// "Latest update" banner and the journey card's "Updated" line so the two always
+	// show the same value. It's the newest milestone `updated_at` — which the DB bumps
+	// on any client-meaningful change: a milestone rename/status/date edit, or a
+	// timeline item created/deleted/status-or-text edited (see the updated_at triggers).
+	// So the freshest real change always replaces the old time in both places.
 	const lastActivity = $derived(
 		project.milestones.reduce<string | null>(
 			(acc, m) => (!acc || m.updated_at > acc ? m.updated_at : acc),
@@ -140,8 +143,8 @@
 					<span class="latest__label">Latest update</span>
 					<span class="latest__title">Task: {latest.title}</span>
 				</div>
-				<span class="latest__time" title={formatDate(latest.entry_date)}>
-					{formatRelative(latest.entry_date)}
+				<span class="latest__time" title={formatDateTime(lastActivity)}>
+					{formatRelative(lastActivity)}
 				</span>
 			</div>
 		{/if}

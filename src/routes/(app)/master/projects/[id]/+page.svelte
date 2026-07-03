@@ -120,6 +120,14 @@
 		});
 	}
 
+	// Full timestamp ("...T...Z") → local "yyyy-mm-dd" for the date picker.
+	function timestampToLocalDate(iso: string): string {
+		const d = new Date(iso);
+		if (Number.isNaN(d.getTime())) return '';
+		const pad = (n: number) => String(n).padStart(2, '0');
+		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+	}
+
 	// Patch the shared list cache so the Projects table stays consistent.
 	function syncListCache(project: ProjectDetail) {
 		mutate<ProjectListItem[]>('projects', (cur) =>
@@ -130,7 +138,8 @@
 							name: project.name,
 							client_name: project.client_name,
 							status: project.status,
-							progress: project.progress
+							progress: project.progress,
+							created_at: project.created_at
 						}
 					: p
 			)
@@ -145,6 +154,7 @@
 	let pName = $state('');
 	let pClientId = $state('');
 	let pDelivery = $state<string | null>(null);
+	let pCreatedAt = $state<string | null>(null);
 	let pFocusTitle = $state('');
 	let pFocusGoal = $state('');
 	let pSlug = $state('');
@@ -243,6 +253,8 @@
 		pName = project.name;
 		pClientId = project.client_id;
 		pDelivery = project.expected_delivery_date;
+		// created_at is a full timestamp; the picker wants a local "yyyy-mm-dd".
+		pCreatedAt = timestampToLocalDate(project.created_at);
 		pFocusTitle = project.current_focus_title ?? '';
 		pFocusGoal = project.current_focus_goal ?? '';
 		pSlug = project.public_slug ?? '';
@@ -277,6 +289,7 @@
 					name: pName,
 					clientId: pClientId,
 					expectedDeliveryDate: pDelivery,
+					...(pCreatedAt ? { createdAt: pCreatedAt } : {}),
 					currentFocusTitle: pFocusTitle,
 					currentFocusGoal: pFocusGoal,
 					publicSlug: pSlug,
@@ -310,6 +323,7 @@
 					// recompute it, so keep the value already on the card.
 					status: cur.status,
 					expected_delivery_date: payload.project.expected_delivery_date,
+					created_at: payload.project.created_at,
 					current_focus_title: payload.project.current_focus_title,
 					current_focus_goal: payload.project.current_focus_goal,
 					public_slug: payload.project.public_slug,
@@ -548,10 +562,14 @@
 	function openWeights() {
 		const project = projectQ.data;
 		if (!project) return;
+		// If weights are already balanced (previously customised), show those.
+		// Otherwise pre-fill the default split so the admin starts from a sensible
+		// 100% — they can change any field before saving.
+		const seedDefaults = savedWeightTotal !== 100;
 		weightDraft = orderedMilestones.map((m) => ({
 			id: m.id,
 			name: m.name,
-			weight: m.weight ?? 0
+			weight: seedDefaults ? (DEFAULT_WEIGHTS[m.name.trim().toLowerCase()] ?? 0) : (m.weight ?? 0)
 		}));
 		weightsError = '';
 		weightsOpen = true;
@@ -570,6 +588,24 @@
 		const base = Math.floor(100 / n);
 		const remainder = 100 - base * n;
 		weightDraft = weightDraft.map((w, i) => ({ ...w, weight: base + (i < remainder ? 1 : 0) }));
+	}
+
+	// Default weighting for the standard project template. Matched by milestone
+	// name (case-insensitive); any milestone not in the map is set to 0 so the admin
+	// can top it up. Totals 100 for the default five-phase project.
+	const DEFAULT_WEIGHTS: Record<string, number> = {
+		planning: 20,
+		design: 20,
+		development: 40,
+		testing: 10,
+		launch: 10
+	};
+
+	function applyDefault() {
+		weightDraft = weightDraft.map((w) => ({
+			...w,
+			weight: DEFAULT_WEIGHTS[w.name.trim().toLowerCase()] ?? 0
+		}));
 	}
 
 	async function submitWeights() {
@@ -891,6 +927,18 @@
 		</div>
 
 		<div class="form__field">
+			<label class="form__label" for="edit-project-created-at">Creation date</label>
+			<DatePicker
+				id="edit-project-created-at"
+				value={pCreatedAt}
+				onChange={(v) => (pCreatedAt = v)}
+				disabled={savingProject}
+				ariaLabel="Project creation date"
+			/>
+			<p class="form__hint">When this project started. Change it to backdate the project.</p>
+		</div>
+
+		<div class="form__field">
 			<label class="form__label" for="edit-project-focus-title">Current focus</label>
 			<input
 				id="edit-project-focus-title"
@@ -1197,13 +1245,22 @@
 
 	{#snippet footer()}
 		<button
+			class="btn btn--secondary btn--sm"
+			type="button"
+			onclick={applyDefault}
+			disabled={savingWeights}
+		>
+			<i class="ri-magic-line" aria-hidden="true"></i>
+			<span>Default</span>
+		</button>
+		<button
 			class="btn btn--secondary btn--sm weights__even"
 			type="button"
 			onclick={distributeEvenly}
 			disabled={savingWeights}
 		>
 			<i class="ri-equalizer-line" aria-hidden="true"></i>
-			<span>Distribute evenly</span>
+			<span>Even split</span>
 		</button>
 		<button
 			class="btn btn--secondary"

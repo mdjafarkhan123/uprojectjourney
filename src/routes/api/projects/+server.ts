@@ -68,7 +68,13 @@ export const GET: RequestHandler = async ({ locals }) => {
 const createSchema = z.object({
 	name: z.string().trim().min(1, 'Project name is required.').max(120),
 	clientId: z.uuid('Choose a client.'),
-	templateKey: z.enum(TEMPLATE_KEYS, { message: 'Choose a template.' })
+	templateKey: z.enum(TEMPLATE_KEYS, { message: 'Choose a template.' }),
+	// Optional manual creation date (ISO "yyyy-mm-dd"). Omitted → DB default now().
+	createdAt: z
+		.string()
+		.regex(/^\d{4}-\d{2}-\d{2}$/, 'Enter a valid date.')
+		.refine((s) => !Number.isNaN(new Date(`${s}T00:00:00Z`).getTime()), 'Enter a valid date.')
+		.optional()
 });
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -93,7 +99,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			{ status: 400 }
 		);
 	}
-	const { name, clientId, templateKey } = parsed.data;
+	const { name, clientId, templateKey, createdAt } = parsed.data;
 
 	// Confirm the client is one this admin owns (RLS hides other admins' users).
 	const { data: client, error: clientError } = await locals.supabase
@@ -126,7 +132,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			name,
 			status: 'planning',
 			template_key: templateKey,
-			project_type: templateLabel(templateKey)
+			project_type: templateLabel(templateKey),
+			// Only override the DB default when the admin picked a date.
+			...(createdAt ? { created_at: createdAt } : {})
 		})
 		.select('id, name, status, created_at')
 		.single();

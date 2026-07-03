@@ -23,6 +23,7 @@
 	aria-label={`Theme: ${meta.label}. Click to change.`}
 >
 	<i class={meta.icon} aria-hidden="true"></i>
+	<span class="theme-toggle__label">Theme</span>
 </button>
 
 <style lang="scss">
@@ -30,8 +31,9 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 40px;
+		gap: 8px;
 		height: 40px;
+		padding: 0 14px;
 		font-size: 20px;
 		color: var(--text-heading);
 		background-color: var(--neutral-secondary-medium);
@@ -42,6 +44,12 @@
 		transition:
 			color 200ms,
 			background-color 200ms;
+
+		&__label {
+			font-size: 14px;
+			font-weight: 500;
+			line-height: 1;
+		}
 
 		&:hover {
 			background-color: var(--neutral-tertiary-medium);
