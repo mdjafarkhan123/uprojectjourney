@@ -113,6 +113,48 @@
 		}
 	}
 
+	// --- Delete confirm modal ---
+	let deleteProject = $state<Project | null>(null);
+	let deletingProject = $state(false);
+	let deleteError = $state('');
+
+	const deleteOpen = $derived(deleteProject !== null);
+
+	function askDelete(project: Project) {
+		deleteProject = project;
+		deleteError = '';
+	}
+
+	function closeDelete() {
+		if (deletingProject) return;
+		deleteProject = null;
+	}
+
+	async function confirmDelete() {
+		if (deletingProject || !deleteProject) return;
+		deletingProject = true;
+		deleteError = '';
+		const target = deleteProject;
+
+		try {
+			const res = await fetch(`/api/projects/${target.id}`, { method: 'DELETE' });
+
+			if (!res.ok) {
+				const payload = await res.json().catch(() => ({}));
+				deleteError = payload.message ?? 'Could not delete the project. Please try again.';
+				deletingProject = false;
+				return;
+			}
+
+			projectsQ.set((cur) => (cur ?? []).filter((p) => p.id !== target.id));
+			deleteProject = null;
+			deletingProject = false;
+		} catch {
+			deleteError = 'Could not reach the server. Please try again.';
+			deletingProject = false;
+		}
+	}
+
 	const skeletonRows = [0, 1, 2, 3, 4];
 
 	const statusMeta: Record<Project['status'], { label: string; className: string }> = {
@@ -166,6 +208,7 @@
 						<th scope="col">Status</th>
 						<th scope="col">Progress</th>
 						<th scope="col">Created</th>
+						<th scope="col" class="table__actions-col"><span class="sr-only">Actions</span></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -176,6 +219,7 @@
 							<td><Skeleton width="84px" height="20px" radius="var(--radius-base)" /></td>
 							<td><Skeleton width="120px" /></td>
 							<td><Skeleton width="90px" /></td>
+							<td class="table__actions"><Skeleton width="32px" height="32px" /></td>
 						</tr>
 					{/each}
 				</tbody>
@@ -200,6 +244,7 @@
 						<th scope="col">Status</th>
 						<th scope="col">Progress</th>
 						<th scope="col">Created</th>
+						<th scope="col" class="table__actions-col"><span class="sr-only">Actions</span></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -232,6 +277,19 @@
 								</div>
 							</td>
 							<td>{formatDate(project.created_at)}</td>
+							<td class="table__actions">
+								<button
+									class="btn btn--sm btn--ghost-danger"
+									type="button"
+									onclick={(e) => {
+										e.stopPropagation();
+										askDelete(project);
+									}}
+									aria-label="Delete {project.name}"
+								>
+									<i class="ri-delete-bin-line" aria-hidden="true"></i>
+								</button>
+							</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -380,7 +438,62 @@
 	{/snippet}
 </Modal>
 
+<!-- Delete project -->
+<Modal open={deleteOpen} title="Delete project" onclose={closeDelete}>
+	<div class="confirm">
+		<i class="ri-error-warning-line confirm__icon" aria-hidden="true"></i>
+		<p class="confirm__text">
+			Permanently delete <strong>{deleteProject?.name}</strong>? This can't be undone. All of its
+			milestones and timeline updates will be removed, and the client will no longer see this
+			project.
+		</p>
+		{#if deleteError}
+			<div class="form__alert" role="alert">
+				<i class="ri-error-warning-line" aria-hidden="true"></i>
+				<span>{deleteError}</span>
+			</div>
+		{/if}
+	</div>
+
+	{#snippet footer()}
+		<button
+			class="btn btn--secondary"
+			type="button"
+			onclick={closeDelete}
+			disabled={deletingProject}
+		>
+			Cancel
+		</button>
+		<button
+			class="btn btn--danger"
+			type="button"
+			onclick={confirmDelete}
+			disabled={deletingProject}
+		>
+			{#if deletingProject}
+				<span class="btn__spinner" aria-hidden="true"></span>
+				<span>Deleting…</span>
+			{:else}
+				<i class="ri-delete-bin-line" aria-hidden="true"></i>
+				<span>Delete project</span>
+			{/if}
+		</button>
+	{/snippet}
+</Modal>
+
 <style lang="scss">
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
 	.page {
 		&__header {
 			display: flex;
@@ -488,6 +601,15 @@
 				text-decoration: underline;
 			}
 		}
+
+		&__actions-col {
+			width: 1%;
+		}
+
+		&__actions {
+			text-align: right;
+			white-space: nowrap;
+		}
 	}
 
 	.progress {
@@ -514,6 +636,26 @@
 		&__value {
 			font-size: 12px;
 			font-variant-numeric: tabular-nums;
+			color: var(--text-body);
+		}
+	}
+
+	.confirm {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 16px;
+		text-align: center;
+
+		&__icon {
+			font-size: 48px;
+			color: var(--fg-danger);
+		}
+
+		&__text {
+			margin: 0;
+			font-size: 14px;
+			line-height: 1.6;
 			color: var(--text-body);
 		}
 	}
@@ -688,5 +830,115 @@
 
 	:global(.select__item[data-selected]) {
 		color: var(--fg-brand-strong);
+	}
+
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		padding: 10px 16px;
+		font-family: inherit;
+		font-size: 14px;
+		font-weight: 500;
+		border: 1px solid transparent;
+		border-radius: var(--radius-base);
+		cursor: pointer;
+		transition: background-color 200ms;
+
+		i {
+			font-size: 16px;
+		}
+
+		&:disabled {
+			cursor: not-allowed;
+			opacity: 0.85;
+		}
+
+		&--sm {
+			padding: 8px 12px;
+		}
+
+		&--brand {
+			color: var(--text-white);
+			background-color: var(--brand);
+			box-shadow:
+				var(--shadow-xs),
+				inset var(--color-1-400) 0 6px 0px -5px,
+				var(--color-1-700) 0 4px 10px -5px;
+
+			&:hover:not(:disabled) {
+				background-color: var(--brand-strong);
+			}
+
+			&:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 4px var(--brand-medium);
+			}
+		}
+
+		&--secondary {
+			color: var(--text-body);
+			background-color: var(--neutral-secondary-medium);
+			border-color: var(--border-default-medium);
+			box-shadow:
+				var(--shadow-xs),
+				inset var(--color-1-400) 0 6px 0px -5px,
+				var(--color-1-700) 0 4px 10px -5px;
+
+			&:hover:not(:disabled) {
+				color: var(--text-heading);
+				background-color: var(--neutral-tertiary-medium);
+			}
+
+			&:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 4px var(--neutral-tertiary);
+			}
+		}
+
+		&--danger {
+			color: var(--text-white);
+			background-color: var(--danger);
+			box-shadow:
+				var(--shadow-xs),
+				inset var(--color-1-400) 0 6px 0px -5px,
+				var(--color-1-700) 0 4px 10px -5px;
+
+			&:hover:not(:disabled) {
+				background-color: var(--danger-strong);
+			}
+
+			&:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 4px var(--danger-medium);
+			}
+		}
+
+		&--ghost-danger {
+			color: var(--text-body);
+			background-color: transparent;
+			border-color: var(--border-default-medium);
+
+			&:hover:not(:disabled) {
+				color: var(--fg-danger);
+				background-color: var(--danger-soft);
+				border-color: var(--border-danger);
+			}
+
+			&:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 4px var(--danger-medium);
+			}
+		}
+
+		&__spinner {
+			width: 16px;
+			height: 16px;
+			border: 2px solid var(--color-1-400);
+			border-top-color: currentColor;
+			border-radius: var(--radius-full);
+			animation: cj-spin 700ms linear infinite;
+		}
 	}
 </style>

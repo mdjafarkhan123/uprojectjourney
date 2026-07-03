@@ -1,6 +1,7 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { z } from 'zod';
 import { computeOverallProgress } from '$lib/progress';
+import { deriveProjectStatus } from '$lib/portal/journey';
 
 // Full project detail + ordered milestones. Progress is DERIVED — a weighted,
 // draft-aware blend of milestone progress (see $lib/progress), never stored.
@@ -78,7 +79,8 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		name: data.name,
 		client_id: data.client_id,
 		client_name: (data.client as { full_name: string } | null)?.full_name ?? '—',
-		status: data.status,
+		// Auto-derived from milestones + timeline signals — the stored column is ignored.
+		status: deriveProjectStatus(milestones),
 		expected_delivery_date: data.expected_delivery_date,
 		current_focus_title: data.current_focus_title,
 		current_focus_goal: data.current_focus_goal,
@@ -112,9 +114,8 @@ const patchSchema = z
 	.object({
 		name: z.string().trim().min(1, 'Project name is required.').max(120).optional(),
 		clientId: z.uuid().optional(),
-		status: z
-			.enum(['planning', 'in_progress', 'waiting_for_client', 'under_review', 'completed'])
-			.optional(),
+		// Note: project `status` is not settable — it is auto-derived from milestones
+		// on read (see deriveProjectStatus). The stored column is vestigial.
 		expectedDeliveryDate: z.iso.date().nullable().optional(),
 		currentFocusTitle: z.string().trim().max(200).nullable().optional(),
 		currentFocusGoal: z.string().trim().max(500).nullable().optional(),
@@ -201,7 +202,6 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 	const update: {
 		name?: string;
 		client_id?: string;
-		status?: 'planning' | 'in_progress' | 'waiting_for_client' | 'under_review' | 'completed';
 		expected_delivery_date?: string | null;
 		current_focus_title?: string | null;
 		current_focus_goal?: string | null;
@@ -211,7 +211,6 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 	} = { updated_at: new Date().toISOString() };
 	if (input.name !== undefined) update.name = input.name;
 	if (input.clientId !== undefined) update.client_id = input.clientId;
-	if (input.status !== undefined) update.status = input.status;
 	if (input.expectedDeliveryDate !== undefined)
 		update.expected_delivery_date = input.expectedDeliveryDate;
 	if (input.currentFocusTitle !== undefined)
@@ -263,4 +262,37 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 	}
 
 	return json({ project: data });
+};
+
+// Permanently delete a project. Admin-only; RLS (`projects_admin_all`) restricts the
+// delete to the admin's own projects. Milestones and their timeline updates are
+// removed automatically by ON DELETE CASCADE — nothing else references a project.
+export const DELETE: RequestHandler = async ({ params, locals }) => {
+	if (locals.user?.role !== 'admin' || !locals.supabase) {
+		return json({ message: 'Not authorized.' }, { status: 403 });
+	}
+
+	const id = params.id ?? '';
+	if (!z.uuid().safeParse(id).success) {
+		return json({ message: 'Invalid project id.' }, { status: 400 });
+	}
+
+	// `.select()` returns the deleted row; a null result means the project was never
+	// visible to this admin (not theirs, or already gone) → treat as 404.
+	const { data, error } = await locals.supabase
+		.from('projects')
+		.delete()
+		.eq('id', id)
+		.select('id')
+		.maybeSingle();
+
+	if (error) {
+		console.error('[projects] delete failed:', error);
+		return json({ message: 'Could not delete the project. Please try again.' }, { status: 500 });
+	}
+	if (!data) {
+		return json({ message: 'Project not found.' }, { status: 404 });
+	}
+
+	return json({ ok: true });
 };

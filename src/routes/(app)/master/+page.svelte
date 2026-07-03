@@ -1,8 +1,20 @@
 <script lang="ts">
 	import LoginForm from '$lib/components/LoginForm.svelte';
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { resolve } from '$app/paths';
+	import { query } from '$lib/data/cache.svelte';
 
 	let { data } = $props();
+
+	// Dashboard stats are fetched client-side (CSR) and cached (SWR): the shell
+	// paints instantly with a skeleton, then fills in after hydration. Only
+	// meaningful for a signed-in admin — the fetcher returns 403 otherwise, but
+	// the markup only mounts this branch when the user is an admin anyway.
+	const statsQ = query<{ clientCount: number }>('dashboard', async () => {
+		const res = await fetch('/api/dashboard');
+		if (!res.ok) throw new Error('Could not load dashboard.');
+		return (await res.json()) as { clientCount: number };
+	});
 </script>
 
 <svelte:head>
@@ -22,7 +34,13 @@
 					<i class="ri-team-line stat__icon" aria-hidden="true"></i>
 				</span>
 				<span class="stat__body">
-					<span class="stat__value">{data.clientCount ?? 0}</span>
+					<span class="stat__value">
+						{#if statsQ.data === undefined}
+							<Skeleton width="40px" height="28px" />
+						{:else}
+							{statsQ.data.clientCount}
+						{/if}
+					</span>
 					<span class="stat__label">Clients</span>
 				</span>
 				<i class="ri-arrow-right-line stat__chevron" aria-hidden="true"></i>

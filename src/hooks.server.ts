@@ -28,6 +28,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	// Route guard: the admin area beyond the login page requires an admin.
 	// `/master` (login) and `/master/signup` (signup) are the public admin pages.
+	// This is the single source of truth for admin access — resolved here on the
+	// server so page/layout loads never need to re-check on client navigation.
 	const { pathname } = event.url;
 	if (
 		pathname.startsWith('/master/') &&
@@ -35,6 +37,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 		event.locals.user?.role !== 'admin'
 	) {
 		redirect(303, '/master');
+	}
+
+	// A signed-in client has no business on the admin login page — send them to
+	// their portal. (Previously lived in the now-removed /master +page.server.ts.)
+	if (pathname === '/master' && event.locals.user?.role === 'client') {
+		redirect(303, '/');
 	}
 
 	return resolve(event);

@@ -1,5 +1,6 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { computeOverallProgress } from '$lib/progress';
+import { deriveProjectStatus } from '$lib/portal/journey';
 
 // Client-facing read of the logged-in client's project journey. Read-only.
 // RLS (`projects_client_select` → client_id = auth.uid(), with milestones /
@@ -75,7 +76,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 		return {
 			id: p.id,
 			name: p.name,
-			status: p.status,
+			// Auto-derived from milestones + timeline signals — the stored column is ignored.
+			status: deriveProjectStatus(milestones),
 			expected_delivery_date: p.expected_delivery_date,
 			current_focus_title: p.current_focus_title,
 			current_focus_goal: p.current_focus_goal,

@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import { supabaseAnon } from '$lib/server/supabase-anon';
 import { computeOverallProgress } from '$lib/progress';
+import { deriveProjectStatus } from '$lib/portal/journey';
 import type { Milestone, PublicBranding, PublicJourney } from '$lib/portal/types';
 import type { LayoutServerLoad } from './$types';
 
@@ -68,7 +69,8 @@ export const load: LayoutServerLoad = async ({ params, depends }) => {
 	const journey: PublicJourney = {
 		id: raw.id,
 		name: raw.name,
-		status: raw.status,
+		// Auto-derived from milestones + timeline signals — the stored column is ignored.
+		status: deriveProjectStatus(rawMilestones),
 		expected_delivery_date: raw.expected_delivery_date,
 		current_focus_title: raw.current_focus_title,
 		current_focus_goal: raw.current_focus_goal,

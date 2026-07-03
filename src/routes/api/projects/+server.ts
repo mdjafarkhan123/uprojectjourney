@@ -2,6 +2,7 @@ import { json, type RequestHandler } from '@sveltejs/kit';
 import { z } from 'zod';
 import { seedMilestones, templateLabel, TEMPLATE_KEYS } from '$lib/templates';
 import { computeOverallProgress } from '$lib/progress';
+import { deriveProjectStatus } from '$lib/portal/journey';
 
 // Shape returned to the list page. Progress is DERIVED — a weighted, draft-aware
 // blend of milestone progress (see $lib/progress), never stored on the project.
@@ -14,7 +15,13 @@ type ProjectListItem = {
 	created_at: string;
 };
 
-type RollupMilestone = { progress: number; weight: number; scope_finalized: boolean };
+type RollupMilestone = {
+	status: 'not_started' | 'open' | 'in_progress' | 'completed';
+	progress: number;
+	weight: number;
+	scope_finalized: boolean;
+	timeline_updates: { status: string }[];
+};
 
 // List this admin's projects. Reads go through the RLS-enforced client, so rows
 // are already scoped to the caller. `projects` has two FKs to `users`, so the
@@ -27,7 +34,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const { data, error } = await locals.supabase
 		.from('projects')
 		.select(
-			'id, name, status, created_at, client:users!projects_client_id_fkey(full_name), milestones(progress, weight, scope_finalized)'
+			'id, name, created_at, client:users!projects_client_id_fkey(full_name), milestones(status, progress, weight, scope_finalized, timeline_updates(status))'
 		)
 		.order('created_at', { ascending: false });
 
@@ -36,15 +43,19 @@ export const GET: RequestHandler = async ({ locals }) => {
 		return json({ message: 'Could not load projects.' }, { status: 500 });
 	}
 
-	const projects: ProjectListItem[] = (data ?? []).map((row) => ({
-		id: row.id,
-		name: row.name,
-		// Embedded to-one relation comes back as an object (or null if RLS-hidden).
-		client_name: (row.client as { full_name: string } | null)?.full_name ?? '—',
-		status: row.status,
-		progress: computeOverallProgress((row.milestones as RollupMilestone[] | null) ?? []),
-		created_at: row.created_at
-	}));
+	const projects: ProjectListItem[] = (data ?? []).map((row) => {
+		const milestones = (row.milestones as RollupMilestone[] | null) ?? [];
+		return {
+			id: row.id,
+			name: row.name,
+			// Embedded to-one relation comes back as an object (or null if RLS-hidden).
+			client_name: (row.client as { full_name: string } | null)?.full_name ?? '—',
+			// Auto-derived from milestones + timeline signals — the stored column is ignored.
+			status: deriveProjectStatus(milestones),
+			progress: computeOverallProgress(milestones),
+			created_at: row.created_at
+		};
+	});
 
 	return json({ projects });
 };

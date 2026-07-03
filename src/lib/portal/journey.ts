@@ -3,6 +3,7 @@
 
 import type {
 	Milestone,
+	MilestoneStatus,
 	PortalProject,
 	ProjectStatus,
 	TimelineStatus,
@@ -124,6 +125,36 @@ export function milestoneCaption(m: Milestone): string {
 // isn't meaningful to them. Aligns with the node state so badge colour + text agree.
 export function milestoneStatusLabel(m: Milestone): string {
 	return milestoneCaption(m);
+}
+
+// Auto-derive the PROJECT-level status from its milestones + their timeline items —
+// the same "status always reflects reality" philosophy the milestone status and
+// progress already use, so a project can never sit on a stale hand-set value.
+//
+// Rule (coldest → most complete):
+//   - no milestones, or every milestone still `not_started` → `planning`
+//   - every milestone `completed`                           → `completed`
+//   - otherwise work is underway; pick the most client-salient live signal across
+//     every milestone's timeline items:
+//       any item `waiting_for_client` → `waiting_for_client` (the client is blocking)
+//       else any item `under_review`  → `under_review`
+//       else                          → `in_progress`
+//
+// `waiting_for_client` outranks `under_review` on purpose: a project blocked on the
+// client is the thing they most need to see.
+export function deriveProjectStatus(
+	milestones: { status: MilestoneStatus; timeline_updates: { status: string }[] }[]
+): ProjectStatus {
+	if (milestones.length === 0) return 'planning';
+	if (milestones.every((m) => m.status === 'completed')) return 'completed';
+	if (milestones.every((m) => m.status === 'not_started')) return 'planning';
+
+	const timelineStatuses = milestones.flatMap((m) =>
+		(m.timeline_updates ?? []).map((t) => t.status)
+	);
+	if (timelineStatuses.includes('waiting_for_client')) return 'waiting_for_client';
+	if (timelineStatuses.includes('under_review')) return 'under_review';
+	return 'in_progress';
 }
 
 // The active milestone: the first one not yet completed (milestones arrive ordered

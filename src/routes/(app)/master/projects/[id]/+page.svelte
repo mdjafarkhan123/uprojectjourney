@@ -108,11 +108,6 @@
 		completed: { label: 'Completed', className: 'badge--success' }
 	};
 
-	const projectStatusItems = (Object.keys(projectStatusMeta) as ProjectStatus[]).map((value) => ({
-		value,
-		label: projectStatusMeta[value].label
-	}));
-
 	function formatDate(iso: string | null): string {
 		if (!iso) return '—';
 		// Date-only string; build a local date to avoid UTC off-by-one shifts.
@@ -149,14 +144,11 @@
 	let projectFieldErrors = $state<{ name?: string; clientId?: string; publicSlug?: string }>({});
 	let pName = $state('');
 	let pClientId = $state('');
-	let pStatus = $state<ProjectStatus>('planning');
 	let pDelivery = $state<string | null>(null);
 	let pFocusTitle = $state('');
 	let pFocusGoal = $state('');
 	let pSlug = $state('');
 	let pIsPublic = $state(false);
-
-	const selectedProjectStatusLabel = $derived(projectStatusMeta[pStatus].label);
 
 	// --- Public sharing (slug + availability + copy) ---
 	const RESERVED_SLUGS = ['master', 'api', 'p', 'journey'];
@@ -245,7 +237,6 @@
 		if (!project) return;
 		pName = project.name;
 		pClientId = project.client_id;
-		pStatus = project.status;
 		pDelivery = project.expected_delivery_date;
 		pFocusTitle = project.current_focus_title ?? '';
 		pFocusGoal = project.current_focus_goal ?? '';
@@ -280,7 +271,6 @@
 				body: JSON.stringify({
 					name: pName,
 					clientId: pClientId,
-					status: pStatus,
 					expectedDeliveryDate: pDelivery,
 					currentFocusTitle: pFocusTitle,
 					currentFocusGoal: pFocusGoal,
@@ -311,7 +301,9 @@
 					name: payload.project.name,
 					client_id: payload.project.client_id,
 					client_name: newClientName,
-					status: payload.project.status,
+					// status is auto-derived from milestones; the PATCH response doesn't
+					// recompute it, so keep the value already on the card.
+					status: cur.status,
 					expected_delivery_date: payload.project.expected_delivery_date,
 					current_focus_title: payload.project.current_focus_title,
 					current_focus_goal: payload.project.current_focus_goal,
@@ -880,38 +872,6 @@
 			{#if projectFieldErrors.clientId}
 				<p class="form__error">{projectFieldErrors.clientId}</p>
 			{/if}
-		</div>
-
-		<div class="form__field">
-			<span class="form__label" id="edit-project-status-label">Status</span>
-			<Select.Root
-				type="single"
-				value={pStatus}
-				onValueChange={(v) => (pStatus = v as ProjectStatus)}
-				items={projectStatusItems}
-				disabled={savingProject}
-			>
-				<Select.Trigger class="select__trigger" aria-labelledby="edit-project-status-label">
-					<span>{selectedProjectStatusLabel}</span>
-					<i class="ri-arrow-down-s-line" aria-hidden="true"></i>
-				</Select.Trigger>
-				<Select.Portal>
-					<Select.Content class="select__content">
-						<Select.Viewport>
-							{#each projectStatusItems as item (item.value)}
-								<Select.Item class="select__item" value={item.value} label={item.label}>
-									{#snippet children({ selected })}
-										<span>{item.label}</span>
-										{#if selected}
-											<i class="ri-check-line" aria-hidden="true"></i>
-										{/if}
-									{/snippet}
-								</Select.Item>
-							{/each}
-						</Select.Viewport>
-					</Select.Content>
-				</Select.Portal>
-			</Select.Root>
 		</div>
 
 		<div class="form__field">
