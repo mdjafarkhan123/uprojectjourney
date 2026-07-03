@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { DatePicker } from 'bits-ui';
-	import { CalendarDate, parseDate, type DateValue } from '@internationalized/date';
+	import { parseDate, today, getLocalTimeZone, type DateValue } from '@internationalized/date';
 
 	// Reusable date field built on bits-ui. Speaks ISO date strings ("yyyy-mm-dd")
 	// on the outside (what our API/DB use) and CalendarDate on the inside (what
@@ -30,7 +30,7 @@
 	}
 
 	const selected = $derived(toCalendarDate(value));
-	const placeholderDate = new CalendarDate(2025, 1, 1);
+	const placeholderDate = today(getLocalTimeZone());
 </script>
 
 <DatePicker.Root
