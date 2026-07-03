@@ -7,6 +7,9 @@
 	import { query } from '$lib/data/cache.svelte';
 	import type { PortalProject } from '$lib/portal/types';
 
+	// Branding comes from the (portal) layout load, merged into this page's `data`.
+	let { data } = $props();
+
 	// Same cache key + fetcher as the portal home and milestone page, so opening a
 	// project from the card list is instant (no refetch). A fresh deep-link populates it.
 	const projectsQ = query<PortalProject[]>('portal:projects', async () => {
@@ -74,7 +77,7 @@
 			</ol>
 		</div>
 	{:else}
-		<ProjectJourney project={found} />
+		<ProjectJourney project={found} updatedByName={data.adminName ?? null} />
 	{/if}
 </section>
 

@@ -26,15 +26,22 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 		logo_url: string | null;
 		primary_color: string | null;
 	} | null = null;
+	// The owning admin's personal name for the journey's "Updated by {name}" label.
+	// Read via a locked-down RPC (a client can't select the admin's users row directly).
+	let adminName: string | null = null;
 
 	if (locals.user?.role === 'client' && locals.supabase) {
-		// branding_client_select returns the owning admin's single row (or none).
-		const { data } = await locals.supabase
-			.from('admin_branding')
-			.select('company_name, logo_url, primary_color')
-			.maybeSingle();
-		branding = data;
+		const [brandingRes, nameRes] = await Promise.all([
+			// branding_client_select returns the owning admin's single row (or none).
+			locals.supabase
+				.from('admin_branding')
+				.select('company_name, logo_url, primary_color')
+				.maybeSingle(),
+			locals.supabase.rpc('get_owner_admin_name')
+		]);
+		branding = brandingRes.data;
+		adminName = (nameRes.data as string | null) ?? null;
 	}
 
-	return { user: locals.user, branding };
+	return { user: locals.user, branding, adminName };
 };

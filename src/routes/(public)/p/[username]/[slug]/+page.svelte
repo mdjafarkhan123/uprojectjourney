@@ -15,4 +15,4 @@
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-<ProjectJourney project={data.journey} {milestoneHref} />
+<ProjectJourney project={data.journey} {milestoneHref} updatedByName={data.journey.admin_name} />

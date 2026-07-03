@@ -18,10 +18,18 @@
 	// `milestoneHref` lets the same journey drive both the logged-in portal
 	// (default: `/milestones/[id]`) and the login-less public view
 	// (`/p/[slug]/milestones/[id]`). Upcoming milestones stay non-clickable.
+	// `updatedByName` labels the freshness signal as "Updated by {admin name}" so the
+	// client reads it as "my contractor changed something", not "the system refreshed".
+	// Falls back to a plain "Updated" when no name is available.
 	let {
 		project,
-		milestoneHref
-	}: { project: PortalProject; milestoneHref?: (id: string) => string } = $props();
+		milestoneHref,
+		updatedByName = null
+	}: {
+		project: PortalProject;
+		milestoneHref?: (id: string) => string;
+		updatedByName?: string | null;
+	} = $props();
 
 	const linkFor = (id: string) =>
 		milestoneHref ? milestoneHref(id) : resolve(`/milestones/${id}`);
@@ -30,6 +38,16 @@
 	const latest = $derived(latestUpdate(project.milestones));
 	const stepCount = $derived(project.milestones.length);
 	const countdown = $derived(deliveryCountdown(project));
+
+	// The single freshest client-visible change across the whole journey (the newest of
+	// every milestone's `updated_at`). Shown once beside the journey heading instead of
+	// on each node.
+	const lastActivity = $derived(
+		project.milestones.reduce<string | null>(
+			(acc, m) => (!acc || m.updated_at > acc ? m.updated_at : acc),
+			null
+		)
+	);
 
 	// The journey (2nd) card. On mobile the overview can read as the whole page, so
 	// the scroll nudge below taps this into view. The attachment just captures the
@@ -120,7 +138,7 @@
 				<i class="ri-notification-badge-line latest__icon" aria-hidden="true"></i>
 				<div class="latest__body">
 					<span class="latest__label">Latest update</span>
-					<span class="latest__title">{latest.title}</span>
+					<span class="latest__title">Task: {latest.title}</span>
 				</div>
 				<span class="latest__time" title={formatDate(latest.entry_date)}>
 					{formatRelative(latest.entry_date)}
@@ -184,12 +202,25 @@
 	<!-- The journey: milestones as a timeline. Horizontal on desktop,
 	     vertical on mobile — same markup, restyled per breakpoint. -->
 	<div class="card journey-card" {@attach captureJourney}>
-		<h2 class="journey-card__heading">
-			Project journey
-			{#if stepCount > 0}
-				<span class="journey-card__count">· {stepCount} {stepCount === 1 ? 'step' : 'steps'}</span>
+		<div class="journey-card__head">
+			<h2 class="journey-card__heading">
+				Project journey
+				{#if stepCount > 0}
+					<span class="journey-card__count">· {stepCount} {stepCount === 1 ? 'step' : 'steps'}</span
+					>
+				{/if}
+			</h2>
+			<!-- One freshness signal for the whole journey: when it last saw a client-visible
+			     change, and by whom. Exact timestamp lives in the title tooltip. -->
+			{#if lastActivity}
+				<span class="journey-card__updated" title="Updated {formatDateTime(lastActivity)}">
+					<i class="ri-history-line" aria-hidden="true"></i>
+					{#if updatedByName}Updated by {updatedByName} · {formatRelative(
+							lastActivity
+						)}{:else}Updated {formatRelative(lastActivity)}{/if}
+				</span>
 			{/if}
-		</h2>
+		</div>
 		{#if project.milestones.length === 0}
 			<p class="journey-card__empty">The journey for this project is being prepared.</p>
 		{:else}
@@ -206,18 +237,6 @@
 							href={isUpcoming ? undefined : linkFor(m.id)}
 							aria-disabled={isUpcoming ? 'true' : undefined}
 						>
-							<span class="journey__date">
-								<!-- Freshness signal: when this phase last saw activity (any milestone or
-								     work-item edit). Compact relative time so it never crowds the node on
-								     mobile; the exact timestamp lives in the title tooltip. Blank for upcoming
-								     phases that haven't started, so the slot stays aligned across the row. -->
-								{#if !isUpcoming}
-									<i class="ri-history-line" aria-hidden="true"></i>
-									<span title="Updated {formatDateTime(m.updated_at)}"
-										>Updated {formatRelative(m.updated_at)}</span
-									>
-								{/if}
-							</span>
 							<span class="journey__marker">
 								{#if state === 'done'}
 									<i class="ri-check-line" aria-hidden="true"></i>
@@ -549,8 +568,17 @@
 	.journey-card {
 		padding: 24px;
 
-		&__heading {
+		&__head {
+			display: flex;
+			align-items: baseline;
+			justify-content: space-between;
+			flex-wrap: wrap;
+			gap: 4px 12px;
 			margin: 0 0 20px;
+		}
+
+		&__heading {
+			margin: 0;
 			font-size: 16px;
 			font-weight: 600;
 			color: var(--text-heading);
@@ -559,6 +587,21 @@
 		&__count {
 			font-weight: 500;
 			color: var(--text-body-subtle);
+		}
+
+		// Single "last updated" signal for the whole journey, sitting opposite the heading.
+		&__updated {
+			display: inline-flex;
+			align-items: center;
+			gap: 5px;
+			font-size: 13px;
+			font-weight: 500;
+			white-space: nowrap;
+			color: var(--text-body-subtle);
+
+			i {
+				font-size: 14px;
+			}
 		}
 
 		&__empty {
@@ -601,7 +644,7 @@
 			content: '';
 			position: absolute;
 			top: 40px;
-			left: 21px;
+			left: 26px;
 			bottom: 0;
 			width: 2px;
 			background-color: var(--border-default-strong);
@@ -617,7 +660,6 @@
 		display: grid;
 		grid-template-columns: 44px 1fr;
 		grid-template-areas:
-			'marker date'
 			'marker name'
 			'marker caption'
 			'marker more';
@@ -639,21 +681,6 @@
 
 		&:not(div):hover .journey__name {
 			color: var(--brand);
-		}
-	}
-
-	.journey__date {
-		grid-area: date;
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		font-size: 12px;
-		font-weight: 500;
-		white-space: nowrap;
-		color: var(--text-body-subtle);
-
-		i {
-			font-size: 13px;
 		}
 	}
 
@@ -743,7 +770,7 @@
 			min-width: 120px;
 
 			&:not(:last-child)::after {
-				top: 50px;
+				top: 30px;
 				left: 50%;
 				bottom: auto;
 				width: 100%;
@@ -754,7 +781,6 @@
 		.journey__link {
 			grid-template-columns: 1fr;
 			grid-template-areas:
-				'date'
 				'marker'
 				'name'
 				'caption'
@@ -763,10 +789,6 @@
 			gap: 6px 0;
 			padding: 0 8px 4px;
 			text-align: center;
-		}
-
-		.journey__date {
-			height: 24px;
 		}
 
 		.journey__name {

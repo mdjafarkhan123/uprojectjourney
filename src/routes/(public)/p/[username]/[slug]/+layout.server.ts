@@ -27,6 +27,7 @@ type RawJourney = {
 	current_focus_goal: string | null;
 	created_at: string;
 	updated_at: string;
+	admin_name: string | null;
 	branding: PublicBranding | null;
 	milestones: RawMilestone[];
 };
@@ -77,6 +78,7 @@ export const load: LayoutServerLoad = async ({ params, depends }) => {
 		current_focus_goal: raw.current_focus_goal,
 		created_at: raw.created_at,
 		updated_at: raw.updated_at,
+		admin_name: raw.admin_name ?? null,
 		progress: computeOverallProgress(rawMilestones),
 		milestones,
 		branding: raw.branding ?? null

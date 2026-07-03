@@ -78,7 +78,7 @@
 		</div>
 	{:else if projectsQ.data.length === 1}
 		<!-- Single project = single-journey feel: straight into the journey, no card. -->
-		<ProjectJourney project={projectsQ.data[0]} />
+		<ProjectJourney project={projectsQ.data[0]} updatedByName={data.adminName ?? null} />
 	{:else}
 		<!-- Multiple projects: one card each, opening its own journey. -->
 		<div class="portal-home">

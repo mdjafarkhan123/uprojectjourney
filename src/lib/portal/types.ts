@@ -29,8 +29,10 @@ export type Milestone = {
 	start_date: string | null;
 	expected_completion_date: string | null;
 	overview: string | null;
-	// Most recent activity in this phase — bumped by any edit to the milestone or any
-	// of its work items (see the updated_at triggers). Drives the portal's "Updated" line.
+	// Most recent client-visible activity in this phase — bumped only when a field the
+	// client can see changes on the milestone or one of its work items (see the
+	// updated_at triggers). Internal edits (weight, scope lock, reorder, progress cache)
+	// don't touch it. Drives the portal's "Updated by {admin name}" line.
 	updated_at: string;
 	timeline_updates: TimelineUpdate[];
 };
@@ -61,5 +63,7 @@ export type PublicBranding = {
 // public shell. Note: `required_action` text is stripped server-side for the
 // public view, so waiting callouts never leak sensitive asks.
 export type PublicJourney = PortalProject & {
+	// The owning admin's personal name, shown as "Updated by {name}" on the journey.
+	admin_name: string | null;
 	branding: PublicBranding | null;
 };
