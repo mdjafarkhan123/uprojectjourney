@@ -1,9 +1,22 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { invalidate } from '$app/navigation';
+	import { page } from '$app/state';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { startPublicVisitTracking } from '$lib/portal/public-track';
 
 	let { data, children } = $props();
+
+	// Record the whole PUBLIC visit from the shared-link shell (not per page) so
+	// navigating between the journey and a milestone stays one visit. Keyed on the
+	// link's username/slug: it starts/resumes tracking and the cleanup stops the
+	// heartbeat when the visitor leaves. Mirrors the logged-in portal shell.
+	const username = $derived(page.params.username);
+	const slug = $derived(page.params.slug);
+	$effect(() => {
+		if (!username || !slug) return;
+		return startPublicVisitTracking(username, slug);
+	});
 
 	// Live updates for the shared public view: every few seconds, re-run the server
 	// load (re-fetches the public-journey RPC) so any admin edit shows up on its own,

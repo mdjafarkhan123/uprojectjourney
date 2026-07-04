@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { Select } from 'bits-ui';
@@ -15,6 +16,8 @@
 		status: 'planning' | 'in_progress' | 'waiting_for_client' | 'under_review' | 'completed';
 		progress: number;
 		created_at: string;
+		public_slug: string | null;
+		is_public: boolean;
 	};
 
 	type Client = {
@@ -265,6 +268,32 @@
 			day: 'numeric'
 		});
 	}
+
+	// --- Public link (compact display + copy) ---
+	// The admin's login username namespaces every public link: /p/<username>/<slug>.
+	const adminUsername = $derived(page.data.user?.username ?? '');
+
+	function shareUrl(project: Project): string {
+		if (!project.is_public || !project.public_slug || !adminUsername) return '';
+		return `${page.url.origin}/p/${adminUsername}/${project.public_slug}`;
+	}
+
+	// Tracks which project's link was just copied, to flash the "Copied" state.
+	let copiedId = $state<string | null>(null);
+	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+	async function copyShareUrl(project: Project) {
+		const url = shareUrl(project);
+		if (!url) return;
+		try {
+			await navigator.clipboard.writeText(url);
+			copiedId = project.id;
+			clearTimeout(copiedTimer);
+			copiedTimer = setTimeout(() => (copiedId = null), 1500);
+		} catch {
+			copiedId = null;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -354,6 +383,30 @@
 								>
 									{project.name}
 								</a>
+								{#if project.is_public && project.public_slug}
+									<span class="public-link">
+										<i class="ri-global-line public-link__icon" aria-hidden="true"></i>
+										<span class="public-link__slug" title={shareUrl(project)}>
+											/p/{adminUsername}/{project.public_slug}
+										</span>
+										<button
+											type="button"
+											class="public-link__copy"
+											onclick={(e) => {
+												e.stopPropagation();
+												copyShareUrl(project);
+											}}
+											aria-label="Copy public link for {project.name}"
+											title="Copy public link"
+										>
+											{#if copiedId === project.id}
+												<i class="ri-check-line" aria-hidden="true"></i>
+											{:else}
+												<i class="ri-file-copy-line" aria-hidden="true"></i>
+											{/if}
+										</button>
+									</span>
+								{/if}
 							</th>
 							<td>{project.client_name}</td>
 							<td>
@@ -829,6 +882,64 @@
 		&__actions {
 			text-align: right;
 			white-space: nowrap;
+		}
+	}
+
+	.public-link {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		width: fit-content;
+		max-width: 240px;
+		margin-top: 6px;
+		padding: 3px 6px 3px 8px;
+		font-weight: 400;
+		background-color: var(--neutral-secondary-soft);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-full);
+
+		&__icon {
+			flex-shrink: 0;
+			font-size: 13px;
+			color: var(--fg-brand);
+		}
+
+		&__slug {
+			overflow: hidden;
+			font-size: 12px;
+			color: var(--text-body);
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		&__copy {
+			display: inline-flex;
+			flex-shrink: 0;
+			align-items: center;
+			justify-content: center;
+			width: 22px;
+			height: 22px;
+			padding: 0;
+			color: var(--text-body);
+			background-color: transparent;
+			border: none;
+			border-radius: var(--radius-full);
+			cursor: pointer;
+			transition: all 200ms;
+
+			i {
+				font-size: 14px;
+			}
+
+			&:hover {
+				color: var(--fg-brand);
+				background-color: var(--neutral-tertiary-medium);
+			}
+
+			&:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 2px var(--brand-medium);
+			}
 		}
 	}
 

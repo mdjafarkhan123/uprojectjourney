@@ -99,23 +99,29 @@ export type Database = {
 			portal_views: {
 				Row: {
 					admin_id: string;
-					client_id: string;
+					client_id: string | null;
 					id: string;
 					last_seen_at: string;
+					project_id: string | null;
+					source: string;
 					started_at: string;
 				};
 				Insert: {
 					admin_id: string;
-					client_id: string;
+					client_id?: string | null;
 					id?: string;
 					last_seen_at?: string;
+					project_id?: string | null;
+					source?: string;
 					started_at?: string;
 				};
 				Update: {
 					admin_id?: string;
-					client_id?: string;
+					client_id?: string | null;
 					id?: string;
 					last_seen_at?: string;
+					project_id?: string | null;
+					source?: string;
 					started_at?: string;
 				};
 				Relationships: [
@@ -131,6 +137,13 @@ export type Database = {
 						columns: ['client_id'];
 						isOneToOne: false;
 						referencedRelation: 'users';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'portal_views_project_id_fkey';
+						columns: ['project_id'];
+						isOneToOne: false;
+						referencedRelation: 'projects';
 						referencedColumns: ['id'];
 					}
 				];
@@ -335,6 +348,8 @@ export type Database = {
 				Args: { p_project_id: string; p_slug: string };
 				Returns: boolean;
 			};
+			record_public_view: { Args: { p_username: string; p_slug: string }; Returns: string };
+			touch_public_view: { Args: { p_view_id: string }; Returns: undefined };
 		};
 		Enums: {
 			milestone_status: 'not_started' | 'open' | 'in_progress' | 'completed';

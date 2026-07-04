@@ -13,6 +13,8 @@ type ProjectListItem = {
 	status: string;
 	progress: number;
 	created_at: string;
+	public_slug: string | null;
+	is_public: boolean;
 };
 
 type RollupMilestone = {
@@ -34,7 +36,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const { data, error } = await locals.supabase
 		.from('projects')
 		.select(
-			'id, name, created_at, client:users!projects_client_id_fkey(full_name), milestones(status, progress, weight, scope_finalized, timeline_updates(status))'
+			'id, name, created_at, public_slug, is_public, client:users!projects_client_id_fkey(full_name), milestones(status, progress, weight, scope_finalized, timeline_updates(status))'
 		)
 		.order('created_at', { ascending: false });
 
@@ -53,7 +55,9 @@ export const GET: RequestHandler = async ({ locals }) => {
 			// Auto-derived from milestones + timeline signals — the stored column is ignored.
 			status: deriveProjectStatus(milestones),
 			progress: computeOverallProgress(milestones),
-			created_at: row.created_at
+			created_at: row.created_at,
+			public_slug: row.public_slug,
+			is_public: row.is_public
 		};
 	});
 
@@ -169,7 +173,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		client_name: client.full_name,
 		status: project.status,
 		progress: 0,
-		created_at: project.created_at
+		created_at: project.created_at,
+		public_slug: null,
+		is_public: false
 	};
 
 	return json({ project: created }, { status: 201 });

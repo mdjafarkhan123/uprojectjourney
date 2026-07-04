@@ -2,12 +2,16 @@
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { query } from '$lib/data/cache.svelte';
 
-	// One recorded portal VISIT (a client's whole stay in the portal — entry to exit),
-	// joined + duration-derived by GET /api/reporting. Newest first.
+	// One recorded VISIT (a whole stay — entry to exit), joined + duration-derived by
+	// GET /api/reporting. Newest first. Two kinds:
+	//   - 'portal': a logged-in client's stay in their portal (has client_name).
+	//   - 'public': an anonymous visit to a shared link (has project_name, no client).
 	type Visit = {
 		id: string;
-		client_id: string;
-		client_name: string;
+		source: 'portal' | 'public';
+		client_id: string | null;
+		client_name: string | null;
+		project_name: string | null;
 		started_at: string;
 		last_seen_at: string;
 		duration_seconds: number;
@@ -36,13 +40,17 @@
 		return rows.filter((v) => new Date(v.started_at).getTime() >= since);
 	});
 
+	// Split the two surfaces once — portal (logged-in clients) vs public (shared links).
+	const portalVisits = $derived(filtered.filter((v) => v.source === 'portal'));
+	const publicVisits = $derived(filtered.filter((v) => v.source === 'public'));
+
 	// --- Summary tiles ---
 	const totalVisits = $derived(filtered.length);
 	const totalSeconds = $derived(filtered.reduce((sum, v) => sum + v.duration_seconds, 0));
-	const activeClients = $derived(new Set(filtered.map((v) => v.client_id)).size);
-	const avgSeconds = $derived(totalVisits === 0 ? 0 : Math.round(totalSeconds / totalVisits));
+	const portalCount = $derived(portalVisits.length);
+	const publicCount = $derived(publicVisits.length);
 
-	// --- Per-client rollup (visits, total time, last visit) ---
+	// --- Per-client rollup (portal only — public visits have no client) ---
 	type ClientRollup = {
 		client_id: string;
 		client_name: string;
@@ -56,7 +64,8 @@
 		// correct here; reactivity lives in the $derived it returns).
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const map = new Map<string, ClientRollup>();
-		for (const v of filtered) {
+		for (const v of portalVisits) {
+			if (!v.client_id) continue;
 			const existing = map.get(v.client_id);
 			if (existing) {
 				existing.visits += 1;
@@ -65,11 +74,36 @@
 			} else {
 				map.set(v.client_id, {
 					client_id: v.client_id,
-					client_name: v.client_name,
+					client_name: v.client_name ?? '—',
 					visits: 1,
 					seconds: v.duration_seconds,
 					lastVisit: v.started_at
 				});
+			}
+		}
+		return [...map.values()].sort((a, b) => b.visits - a.visits);
+	});
+
+	// --- Per-project rollup for PUBLIC shared links (which links get traffic) ---
+	type PublicLinkRollup = {
+		name: string;
+		visits: number;
+		seconds: number;
+		lastVisit: string;
+	};
+
+	const perPublicLink = $derived.by<PublicLinkRollup[]>(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const map = new Map<string, PublicLinkRollup>();
+		for (const v of publicVisits) {
+			const name = v.project_name ?? '—';
+			const existing = map.get(name);
+			if (existing) {
+				existing.visits += 1;
+				existing.seconds += v.duration_seconds;
+				if (v.started_at > existing.lastVisit) existing.lastVisit = v.started_at;
+			} else {
+				map.set(name, { name, visits: 1, seconds: v.duration_seconds, lastVisit: v.started_at });
 			}
 		}
 		return [...map.values()].sort((a, b) => b.visits - a.visits);
@@ -211,7 +245,7 @@
 		<div>
 			<h1 class="page__heading">Reporting</h1>
 			<p class="page__subheading">
-				How often your clients visit their portal and how long they stay.
+				How often your clients visit their portal and shared links, and how long they stay.
 			</p>
 		</div>
 		<div class="range" role="group" aria-label="Date range">
@@ -254,7 +288,8 @@
 		<div class="page__empty">
 			<i class="ri-bar-chart-2-line page__empty-icon" aria-hidden="true"></i>
 			<p class="page__empty-text">
-				No visits recorded yet. Once a client opens their portal, their activity shows up here.
+				No visits recorded yet. Once a client opens their portal or someone opens a shared link,
+				their activity shows up here.
 			</p>
 		</div>
 	{:else}
@@ -269,12 +304,12 @@
 				<span class="stat__value">{formatDuration(totalSeconds)}</span>
 			</div>
 			<div class="stat">
-				<span class="stat__label">Active clients</span>
-				<span class="stat__value">{activeClients}</span>
+				<span class="stat__label">Portal visits</span>
+				<span class="stat__value">{portalCount}</span>
 			</div>
 			<div class="stat">
-				<span class="stat__label">Avg visit</span>
-				<span class="stat__value">{formatDuration(avgSeconds)}</span>
+				<span class="stat__label">Public link visits</span>
+				<span class="stat__value">{publicCount}</span>
 			</div>
 		</div>
 
@@ -327,50 +362,81 @@
 				</svg>
 			</div>
 
-			<div class="grid">
-				<!-- Visits per client -->
-				<div class="panel">
-					<h2 class="panel__title">Visits per client</h2>
-					<ul class="bars">
-						{#each clientBars as c (c.client_id)}
-							<li class="bars__row">
-								<span class="bars__label" title={c.client_name}>{c.client_name}</span>
-								<div class="bars__track">
-									<div class="bars__fill" style="width: {c.pct}%"></div>
-								</div>
-								<span class="bars__value">{c.visits}</span>
-							</li>
-						{/each}
-					</ul>
-				</div>
+			{#if portalCount > 0}
+				<div class="grid">
+					<!-- Visits per client (portal) -->
+					<div class="panel">
+						<h2 class="panel__title">Visits per client</h2>
+						<ul class="bars">
+							{#each clientBars as c (c.client_id)}
+								<li class="bars__row">
+									<span class="bars__label" title={c.client_name}>{c.client_name}</span>
+									<div class="bars__track">
+										<div class="bars__fill" style="width: {c.pct}%"></div>
+									</div>
+									<span class="bars__value">{c.visits}</span>
+								</li>
+							{/each}
+						</ul>
+					</div>
 
-				<!-- Per-client summary table -->
+					<!-- Per-client summary table (portal) -->
+					<div class="panel">
+						<h2 class="panel__title">Client activity</h2>
+						<div class="table-wrap">
+							<table class="table">
+								<thead>
+									<tr>
+										<th scope="col">Client</th>
+										<th scope="col">Visits</th>
+										<th scope="col">Total time</th>
+										<th scope="col">Last visit</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each perClient as c (c.client_id)}
+										<tr>
+											<th scope="row" class="table__row-header">{c.client_name}</th>
+											<td>{c.visits}</td>
+											<td>{formatDuration(c.seconds)}</td>
+											<td>{formatDate(c.lastVisit)}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			{/if}
+
+			{#if publicCount > 0}
+				<!-- Public shared-link activity (anonymous visitors, per project) -->
 				<div class="panel">
-					<h2 class="panel__title">Client activity</h2>
+					<h2 class="panel__title">Public link activity</h2>
 					<div class="table-wrap">
 						<table class="table">
 							<thead>
 								<tr>
-									<th scope="col">Client</th>
+									<th scope="col">Shared project</th>
 									<th scope="col">Visits</th>
 									<th scope="col">Total time</th>
 									<th scope="col">Last visit</th>
 								</tr>
 							</thead>
 							<tbody>
-								{#each perClient as c (c.client_id)}
+								{#each perPublicLink as p (p.name)}
 									<tr>
-										<th scope="row" class="table__row-header">{c.client_name}</th>
-										<td>{c.visits}</td>
-										<td>{formatDuration(c.seconds)}</td>
-										<td>{formatDate(c.lastVisit)}</td>
+										<th scope="row" class="table__row-header">{p.name}</th>
+										<td>{p.visits}</td>
+										<td>{formatDuration(p.seconds)}</td>
+										<td>{formatDate(p.lastVisit)}</td>
 									</tr>
 								{/each}
 							</tbody>
 						</table>
 					</div>
 				</div>
-			</div>
+			{/if}
 
 			<!-- Recent visits -->
 			<div class="panel">
@@ -379,7 +445,7 @@
 					<table class="table">
 						<thead>
 							<tr>
-								<th scope="col">Client</th>
+								<th scope="col">Viewer</th>
 								<th scope="col">Entered</th>
 								<th scope="col">Left</th>
 								<th scope="col">Duration</th>
@@ -388,7 +454,19 @@
 						<tbody>
 							{#each recentVisits as v (v.id)}
 								<tr>
-									<th scope="row" class="table__row-header">{v.client_name}</th>
+									<th scope="row" class="table__row-header">
+										{#if v.source === 'public'}
+											<span class="viewer">
+												<span class="viewer__name">Public visitor</span>
+												<span class="viewer__meta">
+													<i class="ri-global-line" aria-hidden="true"></i>
+													{v.project_name ?? 'Shared link'}
+												</span>
+											</span>
+										{:else}
+											{v.client_name ?? '—'}
+										{/if}
+									</th>
 									<td>{formatDateTime(v.started_at)}</td>
 									<td>{formatDateTime(v.last_seen_at)}</td>
 									<td>{formatDuration(v.duration_seconds)}</td>
@@ -667,6 +745,31 @@
 			font-weight: 500;
 			color: var(--text-heading);
 			white-space: nowrap;
+		}
+	}
+
+	// Viewer cell for public (anonymous) visits: name + a muted project sub-line.
+	.viewer {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+
+		&__name {
+			font-weight: 500;
+			color: var(--text-heading);
+		}
+
+		&__meta {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+			font-size: 12px;
+			font-weight: 400;
+			color: var(--text-body-subtle);
+
+			i {
+				font-size: 13px;
+			}
 		}
 	}
 

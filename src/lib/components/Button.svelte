@@ -110,7 +110,7 @@
 			background-color 200ms;
 
 		i {
-			font-size: 1.14em;
+			font-size: 14px;
 			line-height: 1;
 		}
 
@@ -134,7 +134,7 @@
 
 		&--lg {
 			padding: 12px 20px;
-			font-size: 16px;
+			font-size: 14px;
 		}
 
 		&--full {

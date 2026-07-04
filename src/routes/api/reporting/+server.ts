@@ -1,10 +1,13 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 
-// Admin Reporting read API. Returns this admin's portal VISITS — one row per visit
-// (a client's whole stay in the portal), joined to the client's name. A visit is a
-// pure session log: started_at = entry, last_seen_at = exit/last activity, and
-// duration = last_seen_at − started_at (derived here, never stored). There is no
-// per-project / per-milestone dimension anymore.
+// Admin Reporting read API. Returns this admin's VISITS — one row per visit — for
+// BOTH surfaces:
+//   - source = 'portal': a logged-in client's whole stay in their portal (has a
+//     client, no project — they roam the whole portal).
+//   - source = 'public': an anonymous visit to a shared public link (no client,
+//     but carries the specific project that was shared).
+// A visit is a pure session log: started_at = entry, last_seen_at = exit/last
+// activity, and duration = last_seen_at − started_at (derived here, never stored).
 //
 // Admin-only. RLS (`portal_views_admin_select`) already scopes rows to this admin
 // (admin_id = auth.uid()), so no extra `.eq` is needed. `portal_views` has TWO FKs
@@ -18,8 +21,10 @@ const ROW_LIMIT = 500;
 
 type ReportingRow = {
 	id: string;
-	client_id: string;
-	client_name: string;
+	source: 'portal' | 'public';
+	client_id: string | null;
+	client_name: string | null;
+	project_name: string | null;
 	started_at: string;
 	last_seen_at: string;
 	duration_seconds: number;
@@ -35,7 +40,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const { data, error } = await locals.supabase
 		.from('portal_views')
 		.select(
-			'id, client_id, started_at, last_seen_at, client:users!portal_views_client_id_fkey(full_name)'
+			'id, source, client_id, started_at, last_seen_at, client:users!portal_views_client_id_fkey(full_name), project:projects(name)'
 		)
 		.gte('started_at', since)
 		.order('started_at', { ascending: false })
@@ -47,9 +52,11 @@ export const GET: RequestHandler = async ({ locals }) => {
 	}
 
 	const views: ReportingRow[] = (data ?? []).map((row) => {
-		// Embedded to-one relation comes back as an object (or null if RLS-hidden or
-		// the referenced row was deleted before the FK cascade — defensive).
+		// Embedded to-one relations come back as an object (or null if RLS-hidden or
+		// the referenced row was deleted before the FK cascade — defensive). Public
+		// visits have no client; portal visits have no project.
 		const client = row.client as { full_name: string } | null;
+		const project = row.project as { name: string } | null;
 
 		const startedMs = new Date(row.started_at).getTime();
 		const lastSeenMs = new Date(row.last_seen_at).getTime();
@@ -59,8 +66,10 @@ export const GET: RequestHandler = async ({ locals }) => {
 
 		return {
 			id: row.id,
+			source: row.source === 'public' ? 'public' : 'portal',
 			client_id: row.client_id,
-			client_name: client?.full_name ?? '—',
+			client_name: client?.full_name ?? null,
+			project_name: project?.name ?? null,
 			started_at: row.started_at,
 			last_seen_at: row.last_seen_at,
 			duration_seconds: durationSeconds
