@@ -771,8 +771,8 @@
 				{:else}
 					<ol class="timeline__list">
 						{#each m.timeline_updates as u (u.id)}
-							<li class="timeline__item">
-								<div class="timeline__marker" aria-hidden="true"></div>
+							<li class="timeline__item timeline__item--{u.status}">
+								<div class="timeline__marker timeline__marker--{u.status}" aria-hidden="true"></div>
 								<div class="timeline__body">
 									<div class="timeline__row">
 										<span class="timeline__date">{formatDate(u.entry_date)}</span>
@@ -1442,6 +1442,11 @@
 				height: calc(100% + 4px);
 				background-color: var(--border-default-medium);
 			}
+
+			// A completed step's connector to the next item reads as a finished path.
+			&--completed:not(:last-child)::before {
+				background-color: var(--success);
+			}
 		}
 
 		&__marker {
@@ -1451,9 +1456,35 @@
 			width: 10px;
 			height: 10px;
 			margin-top: 5px;
+			// Default fill; per-status modifiers below override colour so the vertical
+			// timeline reads at a glance (mirrors the status badge palette).
 			background-color: var(--brand);
+			border: 2px solid transparent;
 			border-radius: var(--radius-full);
 			box-shadow: 0 0 0 3px var(--neutral-primary-soft);
+
+			// Not started → hollow ring, no fill. Clearly "not yet begun" and recedes
+			// visually instead of reading as an active/complete step.
+			&--not_started {
+				background-color: transparent;
+				border-color: var(--border-default-strong);
+			}
+
+			&--in_progress {
+				background-color: var(--badge-progress-fg);
+			}
+
+			&--waiting_for_client {
+				background-color: var(--fg-danger);
+			}
+
+			&--under_review {
+				background-color: var(--warning-strong);
+			}
+
+			&--completed {
+				background-color: var(--success);
+			}
 		}
 
 		&__body {
