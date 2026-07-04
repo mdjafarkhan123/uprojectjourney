@@ -523,8 +523,7 @@
 					<i class="ri-user-add-line callout__icon" aria-hidden="true"></i>
 					<div class="callout__body">
 						<p class="callout__text">
-							You need an active client before you can create a project. Add one here — you won't
-							lose what you've filled in.
+							You need an active client before you can create a project. You can add one here...
 						</p>
 						<button
 							class="btn btn--brand btn--sm"
