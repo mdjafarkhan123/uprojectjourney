@@ -21,12 +21,23 @@ const PORTAL_CACHE_KEY = 'portal:projects';
 // re-reads admin_branding (logo / company name / brand colour) under RLS.
 const BRANDING_LOAD_DEP = 'portal:branding';
 
-// How often we re-pull the client's project data.
-const POLL_INTERVAL_MS = 3_000;
+// How often we re-pull the client's project data. A journey changes a few times a
+// day, not every few seconds, so 15s is plenty fresh while keeping the request rate
+// (and DB load) low. Jittered per tick (below) so many open tabs don't fire in lockstep.
+const POLL_INTERVAL_MS = 15_000;
+
+// ±spread added to each interval so concurrent viewers desynchronise instead of
+// hammering the API on the same boundary.
+const POLL_JITTER_MS = 3_000;
 
 // Branding changes rarely and its refetch is a full server-load round trip, so we
-// refresh it far less often than the project data (every 5th tick ≈ 15s).
+// refresh it far less often than the project data (every 5th tick ≈ 75s).
 const BRANDING_EVERY_N_TICKS = 5;
+
+// A single interval with a random ±jitter offset, so N tabs spread their load out.
+function nextDelay(): number {
+	return POLL_INTERVAL_MS + (Math.random() * 2 - 1) * POLL_JITTER_MS;
+}
 
 /**
  * Start polling the portal for changes. Call once from the portal shell layout
@@ -56,11 +67,16 @@ export function startPortalPolling(): () => void {
 		if (document.visibilityState === 'visible') pull(true);
 	}
 
-	const timer = setInterval(tick, POLL_INTERVAL_MS);
+	// Self-rescheduling timeout (not setInterval) so each tick's delay can carry its
+	// own jitter. `run` fires the tick, then queues the next with a fresh random delay.
+	let timer = setTimeout(function run() {
+		tick();
+		timer = setTimeout(run, nextDelay());
+	}, nextDelay());
 	document.addEventListener('visibilitychange', onVisible);
 
 	return () => {
-		clearInterval(timer);
+		clearTimeout(timer);
 		document.removeEventListener('visibilitychange', onVisible);
 	};
 }

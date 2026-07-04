@@ -109,6 +109,22 @@ export function nodeState(m: Milestone): NodeState {
 	return 'upcoming';
 }
 
+// A tiny, client-facing date shown under each journey node so "when does the next
+// thing happen?" is answerable without opening the milestone. Only the state-relevant
+// date is surfaced: an active phase shows its target completion; an upcoming phase
+// shows its estimated start. Completed phases show nothing (the ✓ already says it).
+// Returns null when there's no date to show, so the caller can omit the line entirely.
+export function milestoneNodeDate(m: Milestone): string | null {
+	const state = nodeState(m);
+	if (state === 'active' && m.expected_completion_date) {
+		return `Due ${formatDate(m.expected_completion_date)}`;
+	}
+	if (state === 'upcoming' && m.start_date) {
+		return `Est. ${formatDate(m.start_date)}`;
+	}
+	return null;
+}
+
 export function milestoneCaption(m: Milestone): string {
 	switch (nodeState(m)) {
 		case 'done':

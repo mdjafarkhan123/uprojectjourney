@@ -10,6 +10,7 @@
 		formatRelative,
 		nodeState,
 		milestoneCaption,
+		milestoneNodeDate,
 		buildOverview,
 		latestUpdate,
 		deliveryCountdown
@@ -38,6 +39,17 @@
 	const latest = $derived(latestUpdate(project.milestones));
 	const stepCount = $derived(project.milestones.length);
 	const countdown = $derived(deliveryCountdown(project));
+
+	// The journey's finish line: the whole point of the tracker. When the project is
+	// done we swap the routine "waiting/latest" chrome for a single celebratory banner —
+	// the emotional payoff a package tracker's "Delivered" gives. Driven off the derived
+	// project status (always reflects reality) OR a full progress bar.
+	const isComplete = $derived(project.status === 'completed' || project.progress >= 100);
+
+	// Brand-new project: milestones may exist but nothing has happened yet, so there's no
+	// "latest update" to anchor on. Show a one-line orientation note so a first-time
+	// visitor knows what they're looking at (and that it updates on its own).
+	const hasActivity = $derived(latest !== null);
 
 	// One freshness timestamp for the whole journey, shared by BOTH the overview's
 	// "Latest update" banner and the journey card's "Updated" line so the two always
@@ -116,7 +128,27 @@
 			<span class="overview__progress-label">Overall progress</span>
 		</div>
 
-		{#if overview.waiting.length > 0}
+		{#if isComplete}
+			<div class="complete" role="note">
+				<i class="ri-checkbox-circle-fill complete__icon" aria-hidden="true"></i>
+				<div class="complete__body">
+					<span class="complete__label">Project complete</span>
+					<span class="complete__title">Your project is complete — thank you for the journey!</span>
+				</div>
+			</div>
+		{/if}
+
+		{#if !isComplete && !hasActivity && stepCount > 0}
+			<div class="intro" role="note">
+				<i class="ri-compass-3-line intro__icon" aria-hidden="true"></i>
+				<p class="intro__text">
+					Welcome to your project journey. This page updates on its own as work happens — follow
+					the steps below to see what's done, what's underway, and what's next.
+				</p>
+			</div>
+		{/if}
+
+		{#if !isComplete && overview.waiting.length > 0}
 			<div class="waiting" role="note">
 				<i class="ri-alarm-warning-line waiting__icon" aria-hidden="true"></i>
 				<div class="waiting__body">
@@ -175,7 +207,22 @@
 				</dt>
 				<dd class="tile__value">
 					{formatDate(project.expected_delivery_date)}
-					{#if countdown.hasDate}
+					{#if isComplete}
+						<!-- Done: a live countdown would be meaningless (and a red "overdue" pill
+						     would wrongly scold), so just confirm the finish calmly. -->
+						<span class="countdown countdown--normal">
+							<i class="ri-flag-line countdown__icon" aria-hidden="true"></i>
+							Delivered
+						</span>
+					{:else if countdown.hasDate && countdown.tone === 'overdue'}
+						<!-- Past the estimate but not done: don't blare "overdue" in red at the
+						     client — that reads as blame. Acknowledge it calmly and reassure a
+						     revised date is coming, keeping the portal's trust-building tone. -->
+						<span class="tile__sub tile__sub--revised">
+							<i class="ri-time-line" aria-hidden="true"></i>
+							This estimate has passed — a revised date is coming soon.
+						</span>
+					{:else if countdown.hasDate}
 						<span class="countdown countdown--{countdown.tone}">
 							<i class="ri-timer-flash-line countdown__icon" aria-hidden="true"></i>
 							{countdown.remainingLabel}
@@ -225,12 +272,16 @@
 			{/if}
 		</div>
 		{#if project.milestones.length === 0}
-			<p class="journey-card__empty">The journey for this project is being prepared.</p>
+			<p class="journey-card__empty">
+				We're setting up your project journey — check back shortly. This page updates on its own,
+				so there's nothing you need to do.
+			</p>
 		{:else}
 			<ol class="journey">
 				{#each project.milestones as m, i (m.id)}
 					{@const state = nodeState(m)}
 					{@const isUpcoming = state === 'upcoming'}
+					{@const nodeDate = milestoneNodeDate(m)}
 					<li class="journey__node journey__node--{state}" {@attach reveal(i)}>
 						<!-- Upcoming milestones aren't open yet, so they render as a plain,
 						     non-clickable block (no link, no "View details"). -->
@@ -249,6 +300,11 @@
 							</span>
 							<span class="journey__name">{m.name}</span>
 							<span class="badge badge--{state} journey__caption">{milestoneCaption(m)}</span>
+							{#if nodeDate}
+								<span class="journey__date">
+									<i class="ri-calendar-line" aria-hidden="true"></i>{nodeDate}
+								</span>
+							{/if}
 							{#if !isUpcoming}
 								<span class="journey__more">
 									View details <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
@@ -358,6 +414,21 @@
 			line-height: 1.45;
 			color: var(--text-body);
 		}
+
+		// Calm, non-alarming note shown in place of the red countdown once the estimate
+		// has passed but the project isn't done — reassures rather than scolds.
+		&__sub--revised {
+			display: inline-flex;
+			align-items: flex-start;
+			gap: 5px;
+			margin-top: 6px;
+			color: var(--text-body-subtle);
+
+			i {
+				margin-top: 1px;
+				font-size: 14px;
+			}
+		}
 	}
 
 	// Delivery countdown pill — the eye-catcher on the Expected delivery tile. Bold,
@@ -461,6 +532,91 @@
 			strong {
 				font-weight: 600;
 			}
+		}
+	}
+
+	// --- Project complete banner (the journey's finish line) ---
+	// Success-toned, warm, and quietly celebratory. A gentle scale-in on mount marks
+	// the moment without confetti-level noise; silenced under reduced motion.
+	.complete {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		padding: 16px;
+		background-color: var(--success-soft, rgba(34, 197, 94, 0.12));
+		border: 1px solid var(--border-success, rgba(34, 197, 94, 0.4));
+		border-left: 4px solid var(--success);
+		border-radius: var(--radius-base);
+		animation: complete-in 420ms ease-out both;
+
+		&__icon {
+			flex-shrink: 0;
+			font-size: 30px;
+			line-height: 1;
+			color: var(--success);
+		}
+
+		&__body {
+			display: flex;
+			flex-direction: column;
+			gap: 2px;
+			min-width: 0;
+		}
+
+		&__label {
+			font-size: 11px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+			color: var(--fg-success, #15803d);
+		}
+
+		&__title {
+			font-size: 15px;
+			font-weight: 600;
+			line-height: 1.35;
+			color: var(--text-heading);
+		}
+	}
+
+	@keyframes complete-in {
+		from {
+			opacity: 0;
+			transform: scale(0.96);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.complete {
+			animation: none;
+		}
+	}
+
+	// --- First-visit orientation note (brand-new project, no activity yet) ---
+	.intro {
+		display: flex;
+		gap: 10px;
+		padding: 12px 14px;
+		background-color: var(--neutral-secondary-soft);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-base);
+
+		&__icon {
+			flex-shrink: 0;
+			margin-top: 1px;
+			font-size: 18px;
+			color: var(--text-body-subtle);
+		}
+
+		&__text {
+			margin: 0;
+			font-size: 13px;
+			line-height: 1.55;
+			color: var(--text-body);
 		}
 	}
 
@@ -665,6 +821,7 @@
 		grid-template-areas:
 			'marker name'
 			'marker caption'
+			'marker date'
 			'marker more';
 		align-items: center;
 		gap: 0 16px;
@@ -732,6 +889,24 @@
 		margin-top: 4px;
 	}
 
+	// Tiny date under a node: "Due …" for the active phase, "Est. …" for upcoming.
+	// Muted so it informs without competing with the name/caption.
+	.journey__date {
+		grid-area: date;
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		margin-top: 4px;
+		font-size: 12px;
+		font-weight: 500;
+		font-variant-numeric: tabular-nums;
+		color: var(--text-body-subtle);
+
+		i {
+			font-size: 13px;
+		}
+	}
+
 	// Always-visible affordance so clients know the milestone opens a page.
 	.journey__more {
 		grid-area: more;
@@ -787,6 +962,7 @@
 				'marker'
 				'name'
 				'caption'
+				'date'
 				'more';
 			justify-items: center;
 			gap: 6px 0;

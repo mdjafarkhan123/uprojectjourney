@@ -24,14 +24,24 @@
 	// pause while the tab is hidden (nobody's looking) and pull immediately on refocus.
 	$effect(() => {
 		if (!browser) return;
-		const POLL_MS = 3_000;
+		// 15s base + ±3s jitter: a journey changes a few times a day, so this stays
+		// plenty fresh while keeping request rate low, and the jitter desynchronises
+		// concurrent viewers of the same public link so they don't poll in lockstep.
+		const BASE_MS = 15_000;
+		const JITTER_MS = 3_000;
+		const nextDelay = () => BASE_MS + (Math.random() * 2 - 1) * JITTER_MS;
+
 		const refresh = () => {
 			if (document.visibilityState === 'visible') void invalidate('public:journey');
 		};
-		const timer = setInterval(refresh, POLL_MS);
+		// Self-rescheduling timeout so each interval carries its own jitter.
+		let timer = setTimeout(function run() {
+			refresh();
+			timer = setTimeout(run, nextDelay());
+		}, nextDelay());
 		document.addEventListener('visibilitychange', refresh);
 		return () => {
-			clearInterval(timer);
+			clearTimeout(timer);
 			document.removeEventListener('visibilitychange', refresh);
 		};
 	});
