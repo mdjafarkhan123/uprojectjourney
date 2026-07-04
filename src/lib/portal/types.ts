@@ -10,6 +10,15 @@ export type MilestoneStatus = 'not_started' | 'open' | 'in_progress' | 'complete
 export type TimelineStatus =
 	'not_started' | 'in_progress' | 'waiting_for_client' | 'under_review' | 'completed';
 
+// A "Live preview" link attached to a timeline update — a labelled URL the client
+// can open (e.g. a staging site). Zero or more per update.
+export type TimelineUpdateLink = {
+	id: string;
+	url: string;
+	label: string;
+	position: number;
+};
+
 export type TimelineUpdate = {
 	id: string;
 	title: string;
@@ -18,6 +27,7 @@ export type TimelineUpdate = {
 	required_action: string | null;
 	entry_date: string;
 	created_at: string;
+	links: TimelineUpdateLink[];
 };
 
 export type Milestone = {

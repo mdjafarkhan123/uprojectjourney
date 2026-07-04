@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { seedMilestones, templateLabel, TEMPLATE_KEYS } from '$lib/templates';
 import { computeOverallProgress } from '$lib/progress';
 import { deriveProjectStatus } from '$lib/portal/journey';
+import { slugFormatValid } from '$lib/slug';
 
 // Shape returned to the list page. Progress is DERIVED — a weighted, draft-aware
 // blend of milestone progress (see $lib/progress), never stored on the project.
@@ -69,17 +70,39 @@ export const GET: RequestHandler = async ({ locals }) => {
 // RLS-scoped client (defence in depth — the picker only lists own clients).
 // No single transaction is available over the API, so on milestone-seed failure
 // we compensate by deleting the just-created project to avoid orphans.
-const createSchema = z.object({
-	name: z.string().trim().min(1, 'Project name is required.').max(120),
-	clientId: z.uuid('Choose a client.'),
-	templateKey: z.enum(TEMPLATE_KEYS, { message: 'Choose a template.' }),
-	// Optional manual creation date (ISO "yyyy-mm-dd"). Omitted → DB default now().
-	createdAt: z
-		.string()
-		.regex(/^\d{4}-\d{2}-\d{2}$/, 'Enter a valid date.')
-		.refine((s) => !Number.isNaN(new Date(`${s}T00:00:00Z`).getTime()), 'Enter a valid date.')
-		.optional()
-});
+const createSchema = z
+	.object({
+		name: z.string().trim().min(1, 'Project name is required.').max(120),
+		clientId: z.uuid('Choose a client.'),
+		templateKey: z.enum(TEMPLATE_KEYS, { message: 'Choose a template.' }),
+		// Optional manual creation date (ISO "yyyy-mm-dd"). Omitted → DB default now().
+		createdAt: z
+			.string()
+			.regex(/^\d{4}-\d{2}-\d{2}$/, 'Enter a valid date.')
+			.refine((s) => !Number.isNaN(new Date(`${s}T00:00:00Z`).getTime()), 'Enter a valid date.')
+			.optional(),
+		// Optional public sharing, mirroring the Edit-project flow. An empty slug means
+		// "no public link yet"; a non-empty slug must pass the format rules. The unique
+		// (admin_id, public_slug) index is the authoritative guard at insert time.
+		isPublic: z.boolean().optional(),
+		publicSlug: z
+			.string()
+			.trim()
+			.toLowerCase()
+			.refine(
+				(s) => s === '' || slugFormatValid(s),
+				'Use 3–40 lowercase letters, numbers and hyphens.'
+			)
+			.optional()
+	})
+	// Can't switch public on without a valid link to share.
+	.refine(
+		(o) => !o.isPublic || (typeof o.publicSlug === 'string' && slugFormatValid(o.publicSlug)),
+		{
+			message: 'Add a valid public link to turn on public sharing.',
+			path: ['publicSlug']
+		}
+	);
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (locals.user?.role !== 'admin' || !locals.supabase) {
@@ -103,7 +126,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			{ status: 400 }
 		);
 	}
-	const { name, clientId, templateKey, createdAt } = parsed.data;
+	const { name, clientId, templateKey, createdAt, isPublic, publicSlug } = parsed.data;
+	const slug = publicSlug ? publicSlug : null;
 
 	// Confirm the client is one this admin owns (RLS hides other admins' users).
 	const { data: client, error: clientError } = await locals.supabase
@@ -137,13 +161,26 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			status: 'planning',
 			template_key: templateKey,
 			project_type: templateLabel(templateKey),
+			public_slug: slug,
+			is_public: !!isPublic,
 			// Only override the DB default when the admin picked a date.
 			...(createdAt ? { created_at: createdAt } : {})
 		})
-		.select('id, name, status, created_at')
+		.select('id, name, status, created_at, public_slug, is_public')
 		.single();
 
 	if (projectError || !project) {
+		// A duplicate public slug for this admin trips the unique index — surface it
+		// as a clean field error rather than a generic 500.
+		if (projectError?.code === '23505') {
+			return json(
+				{
+					message: 'That public link is already taken.',
+					errors: { publicSlug: ['That link is already taken. Try another.'] }
+				},
+				{ status: 409 }
+			);
+		}
 		console.error('[projects] create failed:', projectError);
 		return json({ message: 'Could not create the project. Please try again.' }, { status: 500 });
 	}
@@ -174,8 +211,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		status: project.status,
 		progress: 0,
 		created_at: project.created_at,
-		public_slug: null,
-		is_public: false
+		public_slug: project.public_slug,
+		is_public: project.is_public
 	};
 
 	return json({ project: created }, { status: 201 });

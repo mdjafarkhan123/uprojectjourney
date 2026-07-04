@@ -15,13 +15,36 @@ const timelineStatuses = [
 	'completed'
 ] as const;
 
+// A "Live preview" link: a labelled http(s) URL, validated with the URL parser.
+function isHttpUrl(value: string): boolean {
+	try {
+		const u = new URL(value);
+		return u.protocol === 'http:' || u.protocol === 'https:';
+	} catch {
+		return false;
+	}
+}
+
+const linkSchema = z.object({
+	url: z
+		.string()
+		.trim()
+		.min(1, 'Add a URL.')
+		.max(2048)
+		.refine(isHttpUrl, 'Enter a valid http(s) link.'),
+	label: z.string().trim().min(1, 'Add a label.').max(60)
+});
+
+const linksSchema = z.array(linkSchema).max(20).optional();
+
 const patchSchema = z
 	.object({
 		title: z.string().trim().min(1, 'A title is required.').max(200),
 		description: z.string().trim().max(2000).nullable().optional(),
 		status: z.enum(timelineStatuses),
 		requiredAction: z.string().trim().max(500).nullable().optional(),
-		entryDate: z.iso.date()
+		entryDate: z.iso.date(),
+		links: linksSchema
 	})
 	.refine(
 		(obj) =>
@@ -111,6 +134,42 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 		return json({ message: 'Update not found.' }, { status: 404 });
 	}
 
+	// "Live preview" links. Like the title/description, these are frozen once the scope
+	// is finalized (only status + date may change then), so we only touch them in draft
+	// mode. PATCH replaces the whole set: clear the existing rows, then insert the new
+	// order. When frozen — or the field wasn't sent — we return the current set untouched.
+	let links: { id: string; url: string; label: string; position: number }[] = [];
+	if (!finalized && input.links !== undefined) {
+		const { error: delError } = await locals.supabase
+			.from('timeline_update_links')
+			.delete()
+			.eq('update_id', id);
+		if (delError) {
+			console.error('[timeline-updates] link clear failed:', delError);
+			return json({ message: 'Could not save the links. Please try again.' }, { status: 500 });
+		}
+		if (input.links.length > 0) {
+			const { data: linkRows, error: linkError } = await locals.supabase
+				.from('timeline_update_links')
+				.insert(
+					input.links.map((l, i) => ({ update_id: id, url: l.url, label: l.label, position: i }))
+				)
+				.select('id, url, label, position');
+			if (linkError) {
+				console.error('[timeline-updates] link insert failed:', linkError);
+				return json({ message: 'Could not save the links. Please try again.' }, { status: 500 });
+			}
+			links = linkRows ?? [];
+		}
+	} else {
+		const { data: linkRows } = await locals.supabase
+			.from('timeline_update_links')
+			.select('id, url, label, position')
+			.eq('update_id', id)
+			.order('position', { ascending: true });
+		links = linkRows ?? [];
+	}
+
 	// Re-derive the parent milestone's status + progress from its items (e.g. flipping
 	// an item to `completed` bumps progress; to `in_progress` moves status). Returned
 	// so the client can patch the milestone badge + bar without a refetch.
@@ -128,7 +187,12 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 
 	const { milestone_id, ...update } = data;
 	void milestone_id;
-	return json({ update, milestoneStatus, milestoneProgress, milestoneStartDate });
+	return json({
+		update: { ...update, links },
+		milestoneStatus,
+		milestoneProgress,
+		milestoneStartDate
+	});
 };
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {

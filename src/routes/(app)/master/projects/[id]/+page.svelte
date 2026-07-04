@@ -5,6 +5,7 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import DatePicker from '$lib/components/DatePicker.svelte';
 	import Skeleton from '$lib/components/Skeleton.svelte';
+	import PublicShareFields from '$lib/components/PublicShareFields.svelte';
 	import { createQuery, query, mutate } from '$lib/data/cache.svelte';
 	import { computeOverallProgress } from '$lib/progress';
 
@@ -64,6 +65,8 @@
 		status: ProjectStatus;
 		progress: number;
 		created_at: string;
+		public_slug: string | null;
+		is_public: boolean;
 	};
 
 	// Pure CSR + SWR. Keyed by id so navigating between projects picks the right
@@ -139,7 +142,9 @@
 							client_name: project.client_name,
 							status: project.status,
 							progress: project.progress,
-							created_at: project.created_at
+							created_at: project.created_at,
+							public_slug: project.public_slug,
+							is_public: project.is_public
 						}
 					: p
 			)
@@ -159,76 +164,6 @@
 	let pFocusGoal = $state('');
 	let pSlug = $state('');
 	let pIsPublic = $state(false);
-
-	// --- Public sharing (slug + availability + copy) ---
-	const RESERVED_SLUGS = ['master', 'api', 'p', 'journey'];
-	const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-	type SlugStatus = 'idle' | 'invalid' | 'checking' | 'available' | 'taken';
-	let slugStatus = $state<SlugStatus>('idle');
-	let slugCheckTimer: ReturnType<typeof setTimeout> | null = null;
-	let copied = $state(false);
-
-	// The admin's login username namespaces every public link: /p/<username>/<slug>.
-	const adminUsername = $derived(page.data.user?.username ?? '');
-
-	// The full shareable URL, shown as a preview and used by the copy button.
-	const shareUrl = $derived(
-		pSlug && adminUsername ? `${page.url.origin}/p/${adminUsername}/${pSlug}` : ''
-	);
-
-	// Locally validate the slug format (matches the DB + API rules) before we bother
-	// the server with an availability check.
-	function slugFormatValid(s: string): boolean {
-		return s.length >= 3 && s.length <= 40 && SLUG_RE.test(s) && !RESERVED_SLUGS.includes(s);
-	}
-
-	// Normalise as the admin types, then debounce a live availability check.
-	function onSlugInput(raw: string) {
-		const s = raw.trim().toLowerCase();
-		pSlug = s;
-		copied = false;
-		if (slugCheckTimer) clearTimeout(slugCheckTimer);
-
-		if (s === '') {
-			slugStatus = 'idle';
-			return;
-		}
-		if (!slugFormatValid(s)) {
-			slugStatus = 'invalid';
-			return;
-		}
-
-		slugStatus = 'checking';
-		slugCheckTimer = setTimeout(async () => {
-			const target = s;
-			try {
-				const res = await fetch(
-					`/api/projects/${page.params.id}/slug-available?slug=${encodeURIComponent(target)}`
-				);
-				const body = await res.json().catch(() => ({}));
-				// Ignore stale responses if the admin kept typing.
-				if (pSlug !== target) return;
-				if (!res.ok) {
-					slugStatus = 'idle';
-					return;
-				}
-				slugStatus = body.valid && body.available ? 'available' : 'taken';
-			} catch {
-				if (pSlug === target) slugStatus = 'idle';
-			}
-		}, 400);
-	}
-
-	async function copyShareUrl() {
-		if (!shareUrl) return;
-		try {
-			await navigator.clipboard.writeText(shareUrl);
-			copied = true;
-			setTimeout(() => (copied = false), 1500);
-		} catch {
-			copied = false;
-		}
-	}
 
 	// Active clients, plus the currently-assigned client even if it's inactive, so
 	// the picker always shows the current assignment and never renders blank.
@@ -259,9 +194,6 @@
 		pFocusGoal = project.current_focus_goal ?? '';
 		pSlug = project.public_slug ?? '';
 		pIsPublic = project.is_public;
-		slugStatus = 'idle';
-		copied = false;
-		if (slugCheckTimer) clearTimeout(slugCheckTimer);
 		projectError = '';
 		projectFieldErrors = {};
 		editProjectOpen = true;
@@ -962,81 +894,13 @@
 		</div>
 
 		<!-- Public sharing: a login-less, read-only view of this journey. -->
-		<div class="share">
-			<span class="form__label">Public sharing</span>
-			<p class="share__lead">
-				Share a read-only version of this journey with anyone — no login needed.
-			</p>
-
-			<label class="toggle">
-				<input
-					type="checkbox"
-					class="toggle__input"
-					bind:checked={pIsPublic}
-					disabled={savingProject}
-				/>
-				<span class="toggle__track" aria-hidden="true"><span class="toggle__thumb"></span></span>
-				<span class="toggle__text">{pIsPublic ? 'Public view is on' : 'Public view is off'}</span>
-			</label>
-
-			<div class="form__field share__field">
-				<label class="form__label" for="edit-project-slug">Public link</label>
-				<div class="share__row">
-					<span class="share__prefix">/p/{adminUsername}/</span>
-					<input
-						id="edit-project-slug"
-						class="form__input share__input"
-						class:form__input--error={projectFieldErrors.publicSlug ||
-							slugStatus === 'invalid' ||
-							slugStatus === 'taken'}
-						type="text"
-						value={pSlug}
-						oninput={(e) => onSlugInput(e.currentTarget.value)}
-						disabled={savingProject}
-						placeholder="acme-website"
-						autocomplete="off"
-						spellcheck="false"
-					/>
-				</div>
-
-				{#if slugStatus === 'invalid'}
-					<p class="form__error">Use 3–40 lowercase letters, numbers and hyphens.</p>
-				{:else if slugStatus === 'checking'}
-					<p class="share__status share__status--muted">
-						<span class="share__spinner" aria-hidden="true"></span> Checking availability…
-					</p>
-				{:else if slugStatus === 'available'}
-					<p class="share__status share__status--ok">
-						<i class="ri-check-line" aria-hidden="true"></i> This link is available.
-					</p>
-				{:else if slugStatus === 'taken'}
-					<p class="form__error">That link is already taken. Try another.</p>
-				{/if}
-				{#if projectFieldErrors.publicSlug}
-					<p class="form__error">{projectFieldErrors.publicSlug}</p>
-				{/if}
-
-				{#if pSlug && slugStatus !== 'invalid'}
-					<div class="share__preview">
-						<span class="share__url" title={shareUrl}>{shareUrl}</span>
-						<button
-							type="button"
-							class="btn btn--secondary btn--sm share__copy"
-							onclick={copyShareUrl}
-							disabled={savingProject}
-						>
-							{#if copied}
-								<i class="ri-check-line" aria-hidden="true"></i>
-								<span>Copied</span>
-							{:else}
-								<i class="ri-file-copy-line" aria-hidden="true"></i>
-								<span>Copy</span>
-							{/if}
-						</button>
-					</div>
-				{/if}
-			</div>
-		</div>
+		<PublicShareFields
+			bind:slug={pSlug}
+			bind:isPublic={pIsPublic}
+			projectId={page.params.id}
+			disabled={savingProject}
+			serverError={projectFieldErrors.publicSlug}
+		/>
 	</form>
 
 	{#snippet footer()}
@@ -1917,162 +1781,6 @@
 
 		.header-card__top {
 			flex-direction: column;
-		}
-	}
-	.share {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		padding-top: 16px;
-		border-top: 1px solid var(--border-default);
-
-		&__lead {
-			margin: -4px 0 0;
-			font-size: 13px;
-			line-height: 1.5;
-			color: var(--text-body-subtle);
-		}
-
-		&__field {
-			margin-top: 4px;
-		}
-
-		&__row {
-			display: flex;
-			align-items: stretch;
-		}
-
-		&__prefix {
-			display: inline-flex;
-			align-items: center;
-			padding: 0 10px;
-			font-size: 14px;
-			color: var(--text-body-subtle);
-			background-color: var(--neutral-tertiary-medium);
-			border: 1px solid var(--border-default-medium);
-			border-right: none;
-			border-radius: var(--radius-base) 0 0 var(--radius-base);
-		}
-
-		&__input {
-			border-radius: 0 var(--radius-base) var(--radius-base) 0;
-		}
-
-		&__status {
-			display: inline-flex;
-			align-items: center;
-			gap: 6px;
-			margin: 6px 0 0;
-			font-size: 12px;
-
-			i {
-				font-size: 14px;
-			}
-
-			&--muted {
-				color: var(--text-body-subtle);
-			}
-
-			&--ok {
-				color: var(--fg-success);
-			}
-		}
-
-		&__spinner {
-			width: 12px;
-			height: 12px;
-			border: 2px solid var(--border-default-strong);
-			border-top-color: var(--text-body);
-			border-radius: var(--radius-full);
-			animation: cj-spin 700ms linear infinite;
-		}
-
-		&__preview {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			margin-top: 10px;
-			padding: 8px 8px 8px 12px;
-			background-color: var(--neutral-secondary-medium);
-			border: 1px solid var(--border-default);
-			border-radius: var(--radius-base);
-		}
-
-		&__url {
-			flex: 1;
-			min-width: 0;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-			font-size: 13px;
-			color: var(--text-body);
-		}
-
-		&__copy {
-			flex-shrink: 0;
-		}
-	}
-
-	// Accessible toggle switch: a native checkbox rendered as a switch.
-	.toggle {
-		display: inline-flex;
-		align-items: center;
-		gap: 10px;
-		cursor: pointer;
-		user-select: none;
-
-		&__input {
-			position: absolute;
-			width: 1px;
-			height: 1px;
-			opacity: 0;
-			pointer-events: none;
-		}
-
-		&__track {
-			position: relative;
-			flex-shrink: 0;
-			width: 40px;
-			height: 22px;
-			background-color: var(--neutral-tertiary-medium);
-			border: 1px solid var(--border-default-medium);
-			border-radius: var(--radius-full);
-			transition: background-color 200ms;
-		}
-
-		&__thumb {
-			position: absolute;
-			top: 2px;
-			left: 2px;
-			width: 16px;
-			height: 16px;
-			background-color: var(--neutral-primary);
-			border-radius: var(--radius-full);
-			box-shadow: var(--shadow-xs);
-			transition: transform 200ms;
-		}
-
-		&__input:checked + &__track {
-			background-color: var(--brand);
-			border-color: var(--brand);
-
-			.toggle__thumb {
-				transform: translateX(18px);
-				background-color: var(--text-white);
-			}
-		}
-
-		&__input:focus-visible + &__track {
-			box-shadow: 0 0 0 3px var(--brand-medium);
-		}
-
-		&__input:disabled + &__track {
-			opacity: 0.6;
-		}
-
-		&__text {
-			font-size: 14px;
-			color: var(--text-heading);
 		}
 	}
 

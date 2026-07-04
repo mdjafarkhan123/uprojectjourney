@@ -14,6 +14,13 @@
 	type TimelineStatus =
 		'not_started' | 'in_progress' | 'waiting_for_client' | 'under_review' | 'completed';
 
+	type TimelineUpdateLink = {
+		id: string;
+		url: string;
+		label: string;
+		position: number;
+	};
+
 	type TimelineUpdate = {
 		id: string;
 		title: string;
@@ -22,6 +29,7 @@
 		required_action: string | null;
 		entry_date: string;
 		created_at: string;
+		links: TimelineUpdateLink[];
 	};
 
 	type Milestone = {
@@ -353,6 +361,16 @@
 	let uStatus = $state<TimelineStatus>('not_started');
 	let uRequiredAction = $state('');
 	let uEntryDate = $state<string | null>(null);
+	// "Live preview" links — repeatable label + URL rows. Empty rows are dropped on save.
+	let uLinks = $state<{ label: string; url: string }[]>([]);
+	let linksError = $state('');
+
+	function addLinkRow() {
+		uLinks = [...uLinks, { label: '', url: '' }];
+	}
+	function removeLinkRow(index: number) {
+		uLinks = uLinks.filter((_, i) => i !== index);
+	}
 
 	const selectedTimelineStatusLabel = $derived(timelineStatusMeta[uStatus].label);
 	const updateModalTitle = $derived(
@@ -370,6 +388,8 @@
 		uStatus = 'not_started';
 		uRequiredAction = '';
 		uEntryDate = todayIso();
+		uLinks = [];
+		linksError = '';
 		updateError = '';
 		updateFieldErrors = {};
 		updateModalOpen = true;
@@ -383,6 +403,8 @@
 		uStatus = u.status;
 		uRequiredAction = u.required_action ?? '';
 		uEntryDate = u.entry_date;
+		uLinks = u.links.map((l) => ({ label: l.label, url: l.url }));
+		linksError = '';
 		updateError = '';
 		updateFieldErrors = {};
 		updateModalOpen = true;
@@ -408,6 +430,33 @@
 			return;
 		}
 
+		// "Live preview" links: drop fully-blank rows, then require both fields + a valid
+		// http(s) URL on whatever remains. Only editable while the scope is in draft.
+		linksError = '';
+		let cleanedLinks: { label: string; url: string }[] = [];
+		if (!updateFieldsLocked) {
+			const rows = uLinks
+				.map((l) => ({ label: l.label.trim(), url: l.url.trim() }))
+				.filter((l) => l.label !== '' || l.url !== '');
+			for (const l of rows) {
+				if (!l.label || !l.url) {
+					linksError = 'Each link needs both a label and a URL.';
+					return;
+				}
+				try {
+					const parsed = new URL(l.url);
+					if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+						linksError = 'Links must start with http:// or https://';
+						return;
+					}
+				} catch {
+					linksError = `“${l.url}” isn't a valid link.`;
+					return;
+				}
+			}
+			cleanedLinks = rows;
+		}
+
 		savingUpdate = true;
 		updateError = '';
 		updateFieldErrors = {};
@@ -418,7 +467,9 @@
 			description: uDescription,
 			status: uStatus,
 			requiredAction: uRequiredAction,
-			entryDate: uEntryDate
+			entryDate: uEntryDate,
+			// Omit links entirely on a scope-locked edit (server freezes them anyway).
+			...(updateFieldsLocked ? {} : { links: cleanedLinks })
 		};
 
 		try {
@@ -986,6 +1037,67 @@
 				rows="3"
 				placeholder="What happened in this update"></textarea>
 		</div>
+
+		{#if !updateFieldsLocked}
+			<div class="form__field">
+				<span class="form__label"
+					>Live preview links <span class="form__optional">optional</span></span
+				>
+				<p class="form__hint form__hint--top">
+					Labelled links the client can open from their journey — e.g. a staging site or a preview.
+					Add as many as you like.
+				</p>
+
+				{#if uLinks.length > 0}
+					<div class="links">
+						{#each uLinks as link, i (i)}
+							<div class="links__row">
+								<input
+									class="form__input links__label"
+									type="text"
+									bind:value={link.label}
+									disabled={savingUpdate}
+									maxlength="60"
+									placeholder="Label (e.g. Staging site)"
+									aria-label="Link label"
+								/>
+								<input
+									class="form__input links__url"
+									type="url"
+									bind:value={link.url}
+									disabled={savingUpdate}
+									placeholder="https://…"
+									aria-label="Link URL"
+								/>
+								<button
+									class="icon-btn icon-btn--sm icon-btn--danger links__remove"
+									type="button"
+									onclick={() => removeLinkRow(i)}
+									disabled={savingUpdate}
+									aria-label="Remove link"
+								>
+									<i class="ri-close-line" aria-hidden="true"></i>
+								</button>
+							</div>
+						{/each}
+					</div>
+				{/if}
+
+				{#if linksError}
+					<p class="form__error">{linksError}</p>
+				{/if}
+
+				<button
+					class="btn btn--secondary btn--sm links__add"
+					type="button"
+					onclick={addLinkRow}
+					disabled={savingUpdate}
+				>
+					<i class="ri-add-line" aria-hidden="true"></i>
+					<span>Add a link</span>
+				</button>
+			</div>
+		{/if}
 
 		{#if uStatus === 'waiting_for_client'}
 			<div class="form__field">
@@ -1572,6 +1684,17 @@
 			margin: 6px 0 0;
 			font-size: 12px;
 			color: var(--text-body-subtle);
+
+			&--top {
+				margin: 0 0 10px;
+			}
+		}
+
+		&__optional {
+			margin-left: 6px;
+			font-size: 12px;
+			font-weight: 400;
+			color: var(--text-body-subtle);
 		}
 
 		&__alert {
@@ -1608,6 +1731,48 @@
 				font-size: 16px;
 				color: var(--fg-success);
 			}
+		}
+	}
+
+	// Repeatable "Live preview" link rows in the timeline modal.
+	.links {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin-bottom: 10px;
+
+		&__row {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+			gap: 8px;
+			align-items: center;
+		}
+
+		&__remove {
+			flex-shrink: 0;
+		}
+
+		&__add {
+			align-self: flex-start;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.links__row {
+			grid-template-columns: minmax(0, 1fr) auto;
+			grid-template-areas:
+				'label remove'
+				'url url';
+			gap: 8px;
+		}
+		.links__label {
+			grid-area: label;
+		}
+		.links__url {
+			grid-area: url;
+		}
+		.links__remove {
+			grid-area: remove;
 		}
 	}
 

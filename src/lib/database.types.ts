@@ -246,6 +246,41 @@ export type Database = {
 					}
 				];
 			};
+			timeline_update_links: {
+				Row: {
+					created_at: string;
+					id: string;
+					label: string;
+					position: number;
+					update_id: string;
+					url: string;
+				};
+				Insert: {
+					created_at?: string;
+					id?: string;
+					label: string;
+					position?: number;
+					update_id: string;
+					url: string;
+				};
+				Update: {
+					created_at?: string;
+					id?: string;
+					label?: string;
+					position?: number;
+					update_id?: string;
+					url?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'timeline_update_links_update_id_fkey';
+						columns: ['update_id'];
+						isOneToOne: false;
+						referencedRelation: 'timeline_updates';
+						referencedColumns: ['id'];
+					}
+				];
+			};
 			timeline_updates: {
 				Row: {
 					created_at: string;
@@ -343,12 +378,18 @@ export type Database = {
 		};
 		Functions: {
 			get_owner_admin_name: { Args: never; Returns: string };
-			get_public_journey: { Args: { p_username: string; p_slug: string }; Returns: Json };
+			get_public_journey: {
+				Args: { p_slug: string; p_username: string };
+				Returns: Json;
+			};
 			is_slug_available: {
 				Args: { p_project_id: string; p_slug: string };
 				Returns: boolean;
 			};
-			record_public_view: { Args: { p_username: string; p_slug: string }; Returns: string };
+			record_public_view: {
+				Args: { p_slug: string; p_username: string };
+				Returns: string;
+			};
 			touch_public_view: { Args: { p_view_id: string }; Returns: undefined };
 		};
 		Enums: {

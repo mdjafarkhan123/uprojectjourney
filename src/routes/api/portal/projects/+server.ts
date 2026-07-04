@@ -16,6 +16,8 @@ import { deriveProjectStatus } from '$lib/portal/journey';
 type TimelineStatus =
 	'not_started' | 'in_progress' | 'waiting_for_client' | 'under_review' | 'completed';
 
+type LinkRow = { id: string; url: string; label: string; position: number };
+
 type TimelineUpdateRow = {
 	id: string;
 	title: string;
@@ -24,6 +26,8 @@ type TimelineUpdateRow = {
 	required_action: string | null;
 	entry_date: string;
 	created_at: string;
+	// PostgREST names the embedded rows after the table; we re-key to `links` below.
+	timeline_update_links: LinkRow[];
 };
 
 type MilestoneRow = {
@@ -42,12 +46,18 @@ type MilestoneRow = {
 };
 
 // Oldest entry first; break same-day ties by creation time so ordering is stable
-// (mirrors the admin project GET so both views agree).
-function sortTimeline(updates: TimelineUpdateRow[]): TimelineUpdateRow[] {
-	return [...updates].sort((a, b) => {
-		if (a.entry_date !== b.entry_date) return a.entry_date < b.entry_date ? -1 : 1;
-		return a.created_at < b.created_at ? -1 : 1;
-	});
+// (mirrors the admin project GET so both views agree). Also re-keys each update's
+// embedded links to `links` and orders them by position.
+function normalizeTimeline(updates: TimelineUpdateRow[]) {
+	return [...updates]
+		.sort((a, b) => {
+			if (a.entry_date !== b.entry_date) return a.entry_date < b.entry_date ? -1 : 1;
+			return a.created_at < b.created_at ? -1 : 1;
+		})
+		.map(({ timeline_update_links, ...u }) => ({
+			...u,
+			links: [...(timeline_update_links ?? [])].sort((a, b) => a.position - b.position)
+		}));
 }
 
 export const GET: RequestHandler = async ({ locals }) => {
@@ -58,7 +68,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const { data, error } = await locals.supabase
 		.from('projects')
 		.select(
-			'id, name, status, expected_delivery_date, current_focus_title, current_focus_goal, created_at, updated_at, milestones(id, name, status, progress, weight, scope_finalized, position, start_date, expected_completion_date, overview, updated_at, timeline_updates(id, title, description, status, required_action, entry_date, created_at))'
+			'id, name, status, expected_delivery_date, current_focus_title, current_focus_goal, created_at, updated_at, milestones(id, name, status, progress, weight, scope_finalized, position, start_date, expected_completion_date, overview, updated_at, timeline_updates(id, title, description, status, required_action, entry_date, created_at, timeline_update_links(id, url, label, position)))'
 		)
 		.order('created_at', { ascending: false })
 		.order('position', { referencedTable: 'milestones', ascending: true });
@@ -71,7 +81,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const projects = (data ?? []).map((p) => {
 		const milestones = ((p.milestones ?? []) as MilestoneRow[]).map((m) => ({
 			...m,
-			timeline_updates: sortTimeline(m.timeline_updates ?? [])
+			timeline_updates: normalizeTimeline(m.timeline_updates ?? [])
 		}));
 		return {
 			id: p.id,

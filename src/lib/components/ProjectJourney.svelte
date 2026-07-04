@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { Dialog } from 'bits-ui';
 	import type { Attachment } from 'svelte/attachments';
 	import ProgressRing from '$lib/components/ProgressRing.svelte';
 	import type { PortalProject } from '$lib/portal/types';
@@ -39,6 +40,51 @@
 	const latest = $derived(latestUpdate(project.milestones));
 	const stepCount = $derived(project.milestones.length);
 	const countdown = $derived(deliveryCountdown(project));
+
+	// "Live preview" links, aggregated across every timeline update in the project and
+	// ordered newest-first (by the update's created_at, then the link's own position).
+	// Rendered as a compact pill → panel so the overview card stays short. The source
+	// update's title rides along as muted context. Shown in BOTH portal and public views.
+	const previewLinks = $derived.by(() => {
+		const rows: {
+			id: string;
+			url: string;
+			label: string;
+			updateTitle: string;
+			createdAt: string;
+			position: number;
+		}[] = [];
+		for (const m of project.milestones) {
+			for (const u of m.timeline_updates) {
+				for (const l of u.links ?? []) {
+					rows.push({
+						id: l.id,
+						url: l.url,
+						label: l.label,
+						updateTitle: u.title,
+						createdAt: u.created_at,
+						position: l.position
+					});
+				}
+			}
+		}
+		return rows.sort((a, b) => {
+			if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+			return a.position - b.position;
+		});
+	});
+
+	// The bare host of a link, shown under its label as a lightweight "where this goes"
+	// cue. Falls back to the raw string if it somehow isn't a parseable URL.
+	function linkHost(url: string): string {
+		try {
+			return new URL(url).host;
+		} catch {
+			return url;
+		}
+	}
+
+	let previewOpen = $state(false);
 
 	// The journey's finish line: the whole point of the tracker. When the project is
 	// done we swap the routine "waiting/latest" chrome for a single celebratory banner —
@@ -142,8 +188,8 @@
 			<div class="intro" role="note">
 				<i class="ri-compass-3-line intro__icon" aria-hidden="true"></i>
 				<p class="intro__text">
-					Welcome to your project journey. This page updates on its own as work happens — follow
-					the steps below to see what's done, what's underway, and what's next.
+					Welcome to your project journey. This page updates on its own as work happens — follow the
+					steps below to see what's done, what's underway, and what's next.
 				</p>
 			</div>
 		{/if}
@@ -174,11 +220,59 @@
 				<div class="latest__body">
 					<span class="latest__label">Latest update</span>
 					<span class="latest__title">Task: {latest.title}</span>
+					{#if updatedByName}
+						<span class="latest__by">by {updatedByName}</span>
+					{/if}
 				</div>
 				<span class="latest__time" title={formatDateTime(lastActivity)}>
 					{formatRelative(lastActivity)}
 				</span>
 			</div>
+		{/if}
+
+		<!-- Live preview links: a compact one-line pill that opens a panel listing every
+		     labelled link across the project, newest-first. Kept as a pill (not a stacked
+		     section) so the overview card stays short and the journey card still peeks
+		     below the fold on mobile. -->
+		{#if previewLinks.length > 0}
+			<Dialog.Root bind:open={previewOpen}>
+				<Dialog.Trigger class="preview-pill">
+					<i class="ri-global-line preview-pill__icon" aria-hidden="true"></i>
+					<span class="preview-pill__label">Live preview</span>
+					<span class="preview-pill__count">{previewLinks.length}</span>
+					<i class="ri-arrow-right-up-line preview-pill__arrow" aria-hidden="true"></i>
+				</Dialog.Trigger>
+				<Dialog.Portal>
+					<Dialog.Overlay class="preview-overlay" />
+					<Dialog.Content class="preview-sheet">
+						<div class="preview-sheet__head">
+							<Dialog.Title class="preview-sheet__title">
+								<i class="ri-global-line" aria-hidden="true"></i>
+								Live preview links
+							</Dialog.Title>
+							<Dialog.Close class="preview-sheet__close" aria-label="Close">
+								<i class="ri-close-line" aria-hidden="true"></i>
+							</Dialog.Close>
+						</div>
+						<ul class="preview-list">
+							{#each previewLinks as link (link.id)}
+								<li class="preview-list__item">
+									<!-- Admin-authored external URL in a new tab — resolve() is for internal routes only. -->
+									<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+									<a class="preview-link" href={link.url} target="_blank" rel="noopener noreferrer">
+										<span class="preview-link__body">
+											<span class="preview-link__label">{link.label}</span>
+											<span class="preview-link__host">{linkHost(link.url)}</span>
+											<span class="preview-link__source">from “{link.updateTitle}”</span>
+										</span>
+										<i class="ri-external-link-line preview-link__icon" aria-hidden="true"></i>
+									</a>
+								</li>
+							{/each}
+						</ul>
+					</Dialog.Content>
+				</Dialog.Portal>
+			</Dialog.Root>
 		{/if}
 
 		<dl class="overview__grid">
@@ -273,8 +367,8 @@
 		</div>
 		{#if project.milestones.length === 0}
 			<p class="journey-card__empty">
-				We're setting up your project journey — check back shortly. This page updates on its own,
-				so there's nothing you need to do.
+				We're setting up your project journey — check back shortly. This page updates on its own, so
+				there's nothing you need to do.
 			</p>
 		{:else}
 			<ol class="journey">
@@ -660,6 +754,16 @@
 			color: var(--brand-strong);
 		}
 
+		// Who made the change — so the client reads the update as a person's action,
+		// not a system refresh. Muted so it supports the title without competing.
+		&__by {
+			margin-top: 2px;
+			font-size: 12px;
+			font-weight: 500;
+			line-height: 1.3;
+			color: var(--text-body-subtle);
+		}
+
 		&__time {
 			flex-shrink: 0;
 			margin-left: auto;
@@ -1007,6 +1111,219 @@
 			font-variant-numeric: tabular-nums;
 			text-align: right;
 			color: var(--text-heading);
+		}
+	}
+
+	// --- Live preview pill (opens the links panel) ---
+	// Compact, brand-accented, one line. `:global` because bits-ui Dialog.Trigger
+	// renders its own <button> and we pass the class straight through.
+	:global(.preview-pill) {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		align-self: flex-start;
+		padding: 8px 12px;
+		font-family: inherit;
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--fg-brand, var(--brand));
+		background-color: var(--brand-softest, var(--neutral-primary-soft));
+		border: 1px solid var(--border-brand, var(--brand-medium));
+		border-radius: var(--radius-full);
+		cursor: pointer;
+		transition: background-color 200ms;
+	}
+
+	:global(.preview-pill:hover) {
+		background-color: var(--brand-soft, var(--neutral-primary-soft));
+	}
+
+	:global(.preview-pill:focus-visible) {
+		outline: none;
+		box-shadow: 0 0 0 3px var(--brand-medium);
+	}
+
+	:global(.preview-pill__icon) {
+		font-size: 17px;
+		line-height: 1;
+	}
+
+	:global(.preview-pill__count) {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 20px;
+		height: 20px;
+		padding: 0 6px;
+		font-size: 12px;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		color: var(--text-white);
+		background-color: var(--brand);
+		border-radius: var(--radius-full);
+	}
+
+	:global(.preview-pill__arrow) {
+		font-size: 16px;
+		line-height: 1;
+		opacity: 0.8;
+	}
+
+	// --- Panel: centered card on desktop, bottom sheet on mobile ---
+	:global(.preview-overlay) {
+		position: fixed;
+		inset: 0;
+		z-index: 60;
+		background-color: rgba(0, 0, 0, 0.45);
+	}
+
+	:global(.preview-sheet) {
+		position: fixed;
+		z-index: 61;
+		display: flex;
+		flex-direction: column;
+		background-color: var(--neutral-primary);
+		border: 1px solid var(--border-default);
+		box-shadow: var(--shadow-lg);
+
+		// Mobile-first: bottom sheet.
+		left: 0;
+		right: 0;
+		bottom: 0;
+		max-height: 80vh;
+		border-radius: var(--radius-lg, 16px) var(--radius-lg, 16px) 0 0;
+	}
+
+	:global(.preview-sheet__head) {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 16px 18px;
+		border-bottom: 1px solid var(--border-default);
+	}
+
+	:global(.preview-sheet__title) {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		margin: 0;
+		font-size: 15px;
+		font-weight: 600;
+		color: var(--text-heading);
+
+		i {
+			font-size: 18px;
+			color: var(--brand);
+		}
+	}
+
+	:global(.preview-sheet__close) {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		color: var(--text-body);
+		background-color: var(--neutral-secondary-medium);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-base);
+		cursor: pointer;
+		transition: background-color 200ms;
+
+		i {
+			font-size: 18px;
+		}
+
+		&:hover {
+			background-color: var(--neutral-tertiary-medium);
+			color: var(--text-heading);
+		}
+
+		&:focus-visible {
+			outline: none;
+			box-shadow: 0 0 0 3px var(--brand-medium);
+		}
+	}
+
+	:global(.preview-list) {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin: 0;
+		padding: 14px 18px 18px;
+		list-style: none;
+		overflow-y: auto;
+	}
+
+	:global(.preview-link) {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 12px 14px;
+		text-decoration: none;
+		background-color: var(--neutral-primary-soft);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-base);
+		transition:
+			background-color 200ms,
+			border-color 200ms;
+
+		&:hover {
+			background-color: var(--brand-softest, var(--neutral-secondary-medium));
+			border-color: var(--border-brand, var(--brand-medium));
+		}
+
+		&:focus-visible {
+			outline: none;
+			box-shadow: 0 0 0 3px var(--brand-medium);
+		}
+	}
+
+	:global(.preview-link__body) {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+
+	:global(.preview-link__label) {
+		font-size: 14px;
+		font-weight: 600;
+		color: var(--text-heading);
+		overflow-wrap: anywhere;
+	}
+
+	:global(.preview-link__host) {
+		font-size: 12px;
+		color: var(--fg-brand, var(--brand));
+		overflow-wrap: anywhere;
+	}
+
+	:global(.preview-link__source) {
+		font-size: 12px;
+		color: var(--text-body-subtle);
+		overflow-wrap: anywhere;
+	}
+
+	:global(.preview-link__icon) {
+		flex-shrink: 0;
+		margin-left: auto;
+		font-size: 18px;
+		color: var(--text-body-subtle);
+	}
+
+	// Desktop: recentre as a compact modal card.
+	@media (min-width: 640px) {
+		:global(.preview-sheet) {
+			top: 50%;
+			left: 50%;
+			right: auto;
+			bottom: auto;
+			width: min(440px, calc(100vw - 48px));
+			max-height: min(70vh, 560px);
+			transform: translate(-50%, -50%);
+			border-radius: var(--radius-lg, 16px);
 		}
 	}
 </style>

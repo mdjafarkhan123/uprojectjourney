@@ -6,6 +6,7 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import DatePicker from '$lib/components/DatePicker.svelte';
+	import PublicShareFields from '$lib/components/PublicShareFields.svelte';
 	import { query } from '$lib/data/cache.svelte';
 	import { PROJECT_TEMPLATES, type TemplateKey } from '$lib/templates';
 
@@ -58,7 +59,11 @@
 		templateKey?: string;
 		clientId?: string;
 		createdAt?: string;
+		publicSlug?: string;
 	}>({});
+	// Optional public sharing set at creation time (mirrors the Edit-project flow).
+	let publicSlug = $state('');
+	let isPublic = $state(false);
 
 	// Local "today" as an ISO date ("yyyy-mm-dd"), used to pre-fill the picker.
 	function todayIso(): string {
@@ -81,6 +86,8 @@
 		templateKey = '';
 		clientId = '';
 		createdAt = todayIso();
+		publicSlug = '';
+		isPublic = false;
 		createError = '';
 		fieldErrors = {};
 		createOpen = true;
@@ -109,6 +116,8 @@
 					name,
 					clientId,
 					templateKey,
+					isPublic,
+					publicSlug,
 					...(createdAt ? { createdAt } : {})
 				})
 			});
@@ -121,7 +130,8 @@
 					name: errs.name?.[0],
 					templateKey: errs.templateKey?.[0],
 					clientId: errs.clientId?.[0],
-					createdAt: errs.createdAt?.[0]
+					createdAt: errs.createdAt?.[0],
+					publicSlug: errs.publicSlug?.[0]
 				};
 				createError = payload.message ?? 'Something went wrong. Please try again.';
 				creating = false;
@@ -593,6 +603,14 @@
 				<p class="form__hint">Defaults to today. Set an earlier date to backdate the project.</p>
 			{/if}
 		</div>
+
+		<PublicShareFields
+			bind:slug={publicSlug}
+			bind:isPublic
+			projectId={null}
+			disabled={creating}
+			serverError={fieldErrors.publicSlug}
+		/>
 	</form>
 
 	{#snippet footer()}
