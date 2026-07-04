@@ -984,6 +984,44 @@
 		.journey__node--upcoming & {
 			color: var(--text-body);
 		}
+
+		// The active phase's name carries the brand colour so it reads as "here's
+		// where we are now" without needing to open it. Completed phases stay in the
+		// default heading colour — the green disc + tick + "Completed" caption already
+		// signal "done", so the active phase remains the single coloured anchor.
+		.journey__node--active & {
+			color: var(--bg-progress-fg);
+		}
+	}
+
+	// The active (currently running) milestone is the thing the client cares about
+	// most, so it gets lifted: a brand glow ring around its marker plus a gentle
+	// pulse. The pulse is silenced under reduced-motion below.
+	.journey__node--active .journey__marker {
+		box-shadow:
+			0 0 0 4px var(--neutral-primary-soft),
+			0 0 0 6px var(--brand-medium);
+		animation: journey-active-pulse 2s ease-in-out infinite;
+	}
+
+	@keyframes journey-active-pulse {
+		0%,
+		100% {
+			box-shadow:
+				0 0 0 4px var(--neutral-primary-soft),
+				0 0 0 5px var(--brand-medium);
+		}
+		50% {
+			box-shadow:
+				0 0 0 4px var(--neutral-primary-soft),
+				0 0 0 9px var(--brand-softest, transparent);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.journey__node--active .journey__marker {
+			animation: none;
+		}
 	}
 
 	// Layout only — colour + shape come from the global `.badge` (tokens.scss).

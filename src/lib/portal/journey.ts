@@ -110,17 +110,16 @@ export function nodeState(m: Milestone): NodeState {
 }
 
 // A tiny, client-facing date shown under each journey node so "when does the next
-// thing happen?" is answerable without opening the milestone. Only the state-relevant
-// date is surfaced: an active phase shows its target completion; an upcoming phase
-// shows its estimated start. Completed phases show nothing (the ✓ already says it).
-// Returns null when there's no date to show, so the caller can omit the line entirely.
+// thing happen?" is answerable without opening the milestone. Only an active phase's
+// target completion is surfaced. Upcoming phases show nothing: their `start_date` is
+// an internal "items created" timestamp (auto-stamped at project/template creation),
+// not an admin-chosen estimate, so presenting it as "Est." misleads the client.
+// Completed phases show nothing too (the ✓ already says it). Returns null when there's
+// no date to show, so the caller can omit the line entirely.
 export function milestoneNodeDate(m: Milestone): string | null {
 	const state = nodeState(m);
 	if (state === 'active' && m.expected_completion_date) {
 		return `Due ${formatDate(m.expected_completion_date)}`;
-	}
-	if (state === 'upcoming' && m.start_date) {
-		return `Est. ${formatDate(m.start_date)}`;
 	}
 	return null;
 }
@@ -336,7 +335,9 @@ export function buildOverview(project: PortalProject): Overview {
 		const next = milestones[currentIndex + 1];
 		if (next) {
 			nextStepTitle = next.name;
-			nextStepSub = next.start_date ? `Estimated start ${formatDate(next.start_date)}` : 'Upcoming';
+			// `start_date` is an internal auto-stamped timestamp, not an admin estimate,
+			// so it isn't surfaced here (see milestoneNodeDate).
+			nextStepSub = 'Upcoming';
 		} else {
 			nextStepTitle = 'Final milestone';
 			nextStepSub = 'This is the last phase of your project.';
