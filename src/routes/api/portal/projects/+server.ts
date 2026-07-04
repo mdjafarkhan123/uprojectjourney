@@ -26,6 +26,8 @@ type TimelineUpdateRow = {
 	required_action: string | null;
 	entry_date: string;
 	created_at: string;
+	started_at: string | null;
+	completed_at: string | null;
 	// PostgREST names the embedded rows after the table; we re-key to `links` below.
 	timeline_update_links: LinkRow[];
 };
@@ -68,7 +70,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const { data, error } = await locals.supabase
 		.from('projects')
 		.select(
-			'id, name, status, expected_delivery_date, current_focus_title, current_focus_goal, created_at, updated_at, milestones(id, name, status, progress, weight, scope_finalized, position, start_date, expected_completion_date, overview, updated_at, timeline_updates(id, title, description, status, required_action, entry_date, created_at, timeline_update_links(id, url, label, position)))'
+			'id, name, status, expected_delivery_date, current_focus_title, current_focus_goal, created_at, updated_at, milestones(id, name, status, progress, weight, scope_finalized, position, start_date, expected_completion_date, overview, updated_at, timeline_updates(id, title, description, status, required_action, entry_date, created_at, started_at, completed_at, timeline_update_links(id, url, label, position)))'
 		)
 		.order('created_at', { ascending: false })
 		.order('position', { referencedTable: 'milestones', ascending: true });

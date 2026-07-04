@@ -50,6 +50,20 @@ export function formatDate(iso: string | null): string {
 	});
 }
 
+// Date-only label for a real timestamptz (started_at / completed_at). Unlike
+// `formatDate` (which parses a bare y-m-d), the input carries a time + zone, so we
+// let Date parse it and render just the date in the viewer's local timezone.
+export function formatStampDate(iso: string | null): string {
+	if (!iso) return '—';
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return '—';
+	return d.toLocaleDateString(undefined, {
+		year: 'numeric',
+		month: 'short',
+		day: 'numeric'
+	});
+}
+
 // Format a full timestamp (date + time) for "last updated" signals. Unlike
 // `formatDate`, the input is a real timestamptz, so we let the Date parse it and
 // render in the viewer's local timezone.
@@ -177,6 +191,29 @@ export function deriveProjectStatus(
 export function currentMilestone(project: PortalProject): Milestone | null {
 	const index = project.milestones.findIndex((m) => m.status !== 'completed');
 	return index >= 0 ? project.milestones[index] : null;
+}
+
+// How many "not started" (upcoming) items a client sees per milestone. The client
+// gets a focused preview of what's next, not the full backlog — so the timeline reads
+// as a journey instead of a to-do dump. Completed + active items are never capped.
+export const NOT_STARTED_PREVIEW = 3;
+
+// The client-visible slice of a milestone's timeline: every completed/active item, plus
+// only the first `NOT_STARTED_PREVIEW` not-started items (in the list's natural order).
+// As an upcoming item starts, it drops out of the not-started count and the next one
+// surfaces automatically — keeping ~3 upcoming steps visible. No "+N more" affordance:
+// the extra items simply aren't shown. Expects the oldest-first order the API returns.
+export function visibleTimelineItems(updates: TimelineUpdate[]): TimelineUpdate[] {
+	const visible: TimelineUpdate[] = [];
+	let notStartedShown = 0;
+	for (const u of updates) {
+		if (u.status === 'not_started') {
+			if (notStartedShown >= NOT_STARTED_PREVIEW) continue;
+			notStartedShown += 1;
+		}
+		visible.push(u);
+	}
+	return visible;
 }
 
 // Latest timeline entry across every milestone. Each milestone's list arrives

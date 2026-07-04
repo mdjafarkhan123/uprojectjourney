@@ -394,34 +394,40 @@ export type Database = {
 			};
 			timeline_updates: {
 				Row: {
+					completed_at: string | null;
 					created_at: string;
 					description: string | null;
 					entry_date: string;
 					id: string;
 					milestone_id: string;
 					required_action: string | null;
+					started_at: string | null;
 					status: Database['public']['Enums']['timeline_status'];
 					title: string;
 					updated_at: string;
 				};
 				Insert: {
+					completed_at?: string | null;
 					created_at?: string;
 					description?: string | null;
 					entry_date: string;
 					id?: string;
 					milestone_id: string;
 					required_action?: string | null;
+					started_at?: string | null;
 					status?: Database['public']['Enums']['timeline_status'];
 					title: string;
 					updated_at?: string;
 				};
 				Update: {
+					completed_at?: string | null;
 					created_at?: string;
 					description?: string | null;
 					entry_date?: string;
 					id?: string;
 					milestone_id?: string;
 					required_action?: string | null;
+					started_at?: string | null;
 					status?: Database['public']['Enums']['timeline_status'];
 					title?: string;
 					updated_at?: string;

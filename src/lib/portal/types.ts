@@ -27,6 +27,11 @@ export type TimelineUpdate = {
 	required_action: string | null;
 	entry_date: string;
 	created_at: string;
+	// Client-facing progress dates. `started_at` is stamped once the item first leaves
+	// `not_started` (frozen thereafter); `completed_at` when it becomes `completed`. The
+	// client sees these — not the internal `entry_date` — so only real progress shows.
+	started_at: string | null;
+	completed_at: string | null;
 	links: TimelineUpdateLink[];
 };
 

@@ -6,7 +6,10 @@
 		timelineStatusIcon,
 		formatDate,
 		formatDateTime,
-		nodeState
+		formatStampDate,
+		nodeState,
+		visibleTimelineItems,
+		NOT_STARTED_PREVIEW
 	} from '$lib/portal/journey';
 
 	// Presentational milestone detail (header + timeline). Shared by the logged-in
@@ -16,6 +19,19 @@
 	// Note: on the public view `required_action` arrives as null (stripped server-side),
 	// so the "Required from you" callout simply never renders there.
 	let { milestone, index }: { milestone: Milestone; index: number } = $props();
+
+	// By default only the next few not-started items show (visibleTimelineItems), so the
+	// phase reads as a focused journey. But hiding the rest silently can make the client
+	// think the phase is nearly done — so when there ARE more, we surface the count and a
+	// toggle to reveal every remaining step (and collapse back).
+	let showAllUpcoming = $state(false);
+	const notStartedCount = $derived(
+		milestone.timeline_updates.filter((u) => u.status === 'not_started').length
+	);
+	const hiddenCount = $derived(Math.max(0, notStartedCount - NOT_STARTED_PREVIEW));
+	const shownUpdates = $derived(
+		showAllUpcoming ? milestone.timeline_updates : visibleTimelineItems(milestone.timeline_updates)
+	);
 </script>
 
 <header class="card header header--{nodeState(milestone)}">
@@ -66,10 +82,11 @@
 			<p class="timeline-empty__text">No updates for this phase yet.</p>
 		</div>
 	{:else}
+		<!-- Client-facing slice: all completed/active items, but by default only the next few
+		     not-started ones (see visibleTimelineItems) — expandable via the toggle below.
+		     Updates arrive oldest-first, so the timeline reads as a story top-to-bottom. -->
 		<ol class="tl">
-			<!-- Each milestone's updates arrive oldest-first, so the timeline reads as a
-			     story top-to-bottom. -->
-			{#each milestone.timeline_updates as u (u.id)}
+			{#each shownUpdates as u (u.id)}
 				<li class="tl__item tl__item--{u.status}">
 					<div class="tl__rail">
 						<span class="tl__node" aria-hidden="true">
@@ -78,10 +95,24 @@
 					</div>
 					<div class="tl__card">
 						<div class="tl__meta">
-							<span class="tl__date">{formatDate(u.entry_date)}</span>
 							<span class="badge {timelineStatusMeta[u.status].className}">
 								{timelineStatusMeta[u.status].label}
 							</span>
+							<!-- Dates the client sees are real progress, never the internal entry/creation
+							     date: "Started" once the item first moves off not-started, "Completed" when
+							     done. A still-not-started item shows no date at all. -->
+							{#if u.status !== 'not_started' && u.started_at}
+								<span class="tl__date">
+									<span class="tl__date-label">Started</span>
+									{formatStampDate(u.started_at)}
+								</span>
+							{/if}
+							{#if u.status === 'completed' && u.completed_at}
+								<span class="tl__date">
+									<span class="tl__date-label">Completed</span>
+									{formatStampDate(u.completed_at)}
+								</span>
+							{/if}
 						</div>
 						<p class="tl__title">{u.title}</p>
 						{#if u.description}
@@ -100,6 +131,28 @@
 				</li>
 			{/each}
 		</ol>
+
+		{#if hiddenCount > 0}
+			<div class="tl-more">
+				{#if !showAllUpcoming}
+					<p class="tl-more__count">
+						+{hiddenCount} more upcoming {hiddenCount === 1 ? 'step' : 'steps'}
+					</p>
+				{/if}
+				<button
+					type="button"
+					class="tl-more__toggle"
+					aria-expanded={showAllUpcoming}
+					onclick={() => (showAllUpcoming = !showAllUpcoming)}
+				>
+					{showAllUpcoming ? 'Show less' : 'View all'}
+					<i
+						class={showAllUpcoming ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'}
+						aria-hidden="true"
+					></i>
+				</button>
+			</div>
+		{/if}
 	{/if}
 </section>
 
@@ -216,6 +269,62 @@
 			font-size: 14px;
 			color: var(--text-body-subtle);
 			text-align: center;
+		}
+	}
+
+	// --- "More upcoming" reveal: the count + toggle shown when a phase has more
+	// not-started items than the default preview. Sits just under the timeline, indented
+	// to line up with the cards (past the 40px rail column).
+	.tl-more {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		flex-wrap: wrap;
+		margin-top: 4px;
+		padding-left: 54px;
+
+		&__count {
+			margin: 0;
+			font-size: 13px;
+			font-weight: 500;
+			color: var(--text-body-subtle);
+		}
+
+		&__toggle {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+			padding: 7px 14px;
+			font-family: inherit;
+			font-size: 13px;
+			font-weight: 600;
+			color: var(--fg-brand, var(--brand));
+			background-color: var(--brand-softest, var(--neutral-secondary-medium));
+			border: 1px solid var(--border-brand, var(--brand-medium));
+			border-radius: var(--radius-full);
+			cursor: pointer;
+			transition:
+				background-color 200ms,
+				border-color 200ms;
+
+			i {
+				font-size: 16px;
+			}
+
+			&:hover {
+				background-color: var(--brand-soft, var(--neutral-tertiary-medium));
+			}
+
+			&:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 3px var(--brand-medium);
+			}
+		}
+	}
+
+	@media (max-width: 640px) {
+		.tl-more {
+			padding-left: 46px;
 		}
 	}
 
@@ -345,15 +454,30 @@
 		&__meta {
 			display: flex;
 			align-items: center;
-			gap: 10px;
+			flex-wrap: wrap;
+			gap: 8px 10px;
 			margin-bottom: 8px;
 		}
 
 		&__date {
+			display: inline-flex;
+			align-items: baseline;
+			gap: 5px;
 			font-size: 12px;
 			font-weight: 500;
 			font-variant-numeric: tabular-nums;
 			color: var(--text-body-subtle);
+		}
+
+		// The "Started" / "Completed" prefix on a progress date — quiet, uppercase, so the
+		// date itself stays the emphasis.
+		&__date-label {
+			font-size: 10px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+			color: var(--text-body-subtle);
+			opacity: 0.85;
 		}
 
 		&__title {

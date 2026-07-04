@@ -111,9 +111,17 @@ edited / deleted; once finalized, the API rejects add/delete and restricts edits
 | description     | text null          |                                                                                                             |
 | status          | timeline_status    |                                                                                                             |
 | required_action | text null          | required when status = `waiting_for_client`                                                                 |
-| entry_date      | date               | the date shown on the timeline                                                                              |
+| entry_date      | date               | admin-facing "date on the timeline". **Not shown to the client** — the client sees `started_at`/`completed_at` instead. |
 | created_at      | timestamptz        |                                                                                                             |
 | updated_at      | timestamptz        | `not null default now()`; bumped on every edit (trigger). Also touches the parent milestone's `updated_at`. |
+| started_at      | timestamptz null   | Client-facing "Started" date. Stamped **once**, the first time `status` leaves `not_started`; never overwritten after. |
+| completed_at    | timestamptz null   | Client-facing "Completed" date. Stamped when `status` becomes `completed`; cleared if the item is reopened.  |
+
+`started_at` / `completed_at` are maintained by a `before insert or update` trigger
+(`timeline_updates_track_progress_dates`), not app code, so they stay correct on every write
+path (edit form, milestone sync, …). The client portal shows **no date** for a `not_started`
+item, "Started {started_at}" once active, and additionally "Completed {completed_at}" when done —
+and only ever renders the next 3 `not_started` items per milestone (see `visibleTimelineItems`).
 
 ### `sessions`
 
