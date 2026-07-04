@@ -8,7 +8,6 @@
 	import DatePicker from '$lib/components/DatePicker.svelte';
 	import PublicShareFields from '$lib/components/PublicShareFields.svelte';
 	import { query } from '$lib/data/cache.svelte';
-	import { PROJECT_TEMPLATES, type TemplateKey } from '$lib/templates';
 
 	type Project = {
 		id: string;
@@ -29,6 +28,13 @@
 		created_at: string;
 	};
 
+	// The admin's own workflow templates (Settings ▸ Templates), used to populate the
+	// create-project picker. We only need id + name here.
+	type TemplateSummary = {
+		id: string;
+		name: string;
+	};
+
 	// Pure CSR: content is client-fetched and cached (stale-while-revalidate).
 	// We patch the cache directly after a create so the list updates instantly.
 	const projectsQ = query<Project[]>('projects', async () => {
@@ -46,17 +52,29 @@
 		return body.clients as Client[];
 	});
 
+	// The admin's template library, fetched lazily when the create modal opens.
+	// Shares the `templates` cache key with the Settings ▸ Templates library, so both
+	// read the same rows. We keep the full row shape at runtime (a create/edit there
+	// patches this cache) and only read id + name here.
+	const templatesQ = query<TemplateSummary[]>('templates', async () => {
+		const res = await fetch('/api/templates');
+		if (!res.ok) throw new Error('Could not load templates.');
+		const body = await res.json();
+		return body.templates as TemplateSummary[];
+	});
+
 	// --- Create modal ---
 	let createOpen = $state(false);
 	let name = $state('');
-	let templateKey = $state<TemplateKey | ''>('');
+	let templateId = $state('');
 	let clientId = $state('');
 	let createdAt = $state<string | null>(null);
+	let deliveryDate = $state<string | null>(null);
 	let creating = $state(false);
 	let createError = $state('');
 	let fieldErrors = $state<{
 		name?: string;
-		templateKey?: string;
+		templateId?: string;
 		clientId?: string;
 		createdAt?: string;
 		publicSlug?: string;
@@ -72,27 +90,31 @@
 		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 	}
 
-	const templateItems = PROJECT_TEMPLATES.map((t) => ({ value: t.key, label: t.label }));
+	const templateItems = $derived(
+		(templatesQ.data ?? []).map((t) => ({ value: t.id, label: t.name }))
+	);
 	const activeClients = $derived((clientsQ.data ?? []).filter((c) => c.status === 'active'));
 	const clientItems = $derived(activeClients.map((c) => ({ value: c.id, label: c.full_name })));
 
 	const selectedTemplateLabel = $derived(
-		templateItems.find((t) => t.value === templateKey)?.label ?? ''
+		templateItems.find((t) => t.value === templateId)?.label ?? ''
 	);
 	const selectedClientLabel = $derived(clientItems.find((c) => c.value === clientId)?.label ?? '');
 
 	function openCreate() {
 		name = '';
-		templateKey = '';
+		templateId = '';
 		clientId = '';
 		createdAt = todayIso();
+		deliveryDate = null;
 		publicSlug = '';
 		isPublic = false;
 		createError = '';
 		fieldErrors = {};
 		createOpen = true;
-		// Make sure the client picker has options to show.
+		// Make sure the client and template pickers have options to show.
 		clientsQ.load();
+		templatesQ.load();
 	}
 
 	function closeCreate() {
@@ -115,9 +137,10 @@
 				body: JSON.stringify({
 					name,
 					clientId,
-					templateKey,
+					templateId,
 					isPublic,
 					publicSlug,
+					expectedDeliveryDate: deliveryDate,
 					...(createdAt ? { createdAt } : {})
 				})
 			});
@@ -128,7 +151,7 @@
 				const errs = payload.errors ?? {};
 				fieldErrors = {
 					name: errs.name?.[0],
-					templateKey: errs.templateKey?.[0],
+					templateId: errs.templateId?.[0],
 					clientId: errs.clientId?.[0],
 					createdAt: errs.createdAt?.[0],
 					publicSlug: errs.publicSlug?.[0]
@@ -484,13 +507,13 @@
 			<span class="form__label" id="create-project-template-label">Template</span>
 			<Select.Root
 				type="single"
-				value={templateKey}
-				onValueChange={(v) => (templateKey = v as TemplateKey)}
+				value={templateId}
+				onValueChange={(v) => (templateId = v)}
 				items={templateItems}
 				disabled={creating}
 			>
 				<Select.Trigger
-					class={fieldErrors.templateKey
+					class={fieldErrors.templateId
 						? 'select__trigger select__trigger--error'
 						: 'select__trigger'}
 					aria-labelledby="create-project-template-label"
@@ -517,8 +540,8 @@
 					</Select.Content>
 				</Select.Portal>
 			</Select.Root>
-			{#if fieldErrors.templateKey}
-				<p class="form__error">{fieldErrors.templateKey}</p>
+			{#if fieldErrors.templateId}
+				<p class="form__error">{fieldErrors.templateId}</p>
 			{:else}
 				<p class="form__hint">
 					Seeds the default milestones: Planning, Design, Development, Testing, Launch.
@@ -602,6 +625,18 @@
 			{:else}
 				<p class="form__hint">Defaults to today. Set an earlier date to backdate the project.</p>
 			{/if}
+		</div>
+
+		<div class="form__field">
+			<label class="form__label" for="create-project-delivery">Delivery date</label>
+			<DatePicker
+				id="create-project-delivery"
+				value={deliveryDate}
+				onChange={(v) => (deliveryDate = v)}
+				disabled={creating}
+				ariaLabel="Delivery date"
+			/>
+			<p class="form__hint">Optional. The client sees this as the estimated delivery.</p>
 		</div>
 
 		<PublicShareFields

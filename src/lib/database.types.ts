@@ -246,6 +246,117 @@ export type Database = {
 					}
 				];
 			};
+			template_items: {
+				Row: {
+					default_status: Database['public']['Enums']['timeline_status'];
+					description: string | null;
+					id: string;
+					position: number;
+					template_milestone_id: string;
+					title: string;
+				};
+				Insert: {
+					default_status?: Database['public']['Enums']['timeline_status'];
+					description?: string | null;
+					id?: string;
+					position?: number;
+					template_milestone_id: string;
+					title: string;
+				};
+				Update: {
+					default_status?: Database['public']['Enums']['timeline_status'];
+					description?: string | null;
+					id?: string;
+					position?: number;
+					template_milestone_id?: string;
+					title?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'template_items_template_milestone_id_fkey';
+						columns: ['template_milestone_id'];
+						isOneToOne: false;
+						referencedRelation: 'template_milestones';
+						referencedColumns: ['id'];
+					}
+				];
+			};
+			template_milestones: {
+				Row: {
+					id: string;
+					name: string;
+					overview: string | null;
+					position: number;
+					template_id: string;
+					weight: number;
+				};
+				Insert: {
+					id?: string;
+					name: string;
+					overview?: string | null;
+					position?: number;
+					template_id: string;
+					weight?: number;
+				};
+				Update: {
+					id?: string;
+					name?: string;
+					overview?: string | null;
+					position?: number;
+					template_id?: string;
+					weight?: number;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'template_milestones_template_id_fkey';
+						columns: ['template_id'];
+						isOneToOne: false;
+						referencedRelation: 'templates';
+						referencedColumns: ['id'];
+					}
+				];
+			};
+			templates: {
+				Row: {
+					admin_id: string;
+					created_at: string;
+					description: string | null;
+					icon: string;
+					id: string;
+					name: string;
+					position: number;
+					updated_at: string;
+				};
+				Insert: {
+					admin_id: string;
+					created_at?: string;
+					description?: string | null;
+					icon: string;
+					id?: string;
+					name: string;
+					position?: number;
+					updated_at?: string;
+				};
+				Update: {
+					admin_id?: string;
+					created_at?: string;
+					description?: string | null;
+					icon?: string;
+					id?: string;
+					name?: string;
+					position?: number;
+					updated_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'templates_admin_id_fkey';
+						columns: ['admin_id'];
+						isOneToOne: false;
+						referencedRelation: 'users';
+						referencedColumns: ['id'];
+					}
+				];
+			};
 			timeline_update_links: {
 				Row: {
 					created_at: string;

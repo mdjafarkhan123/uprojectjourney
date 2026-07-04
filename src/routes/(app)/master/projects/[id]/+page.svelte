@@ -652,7 +652,7 @@
 
 			<dl class="header-card__facts">
 				<div class="fact">
-					<dt class="fact__label">Expected delivery</dt>
+					<dt class="fact__label">Delivery date</dt>
 					<dd class="fact__value">{formatDate(project.expected_delivery_date)}</dd>
 				</div>
 				{#if project.current_focus_title}
@@ -848,13 +848,13 @@
 		</div>
 
 		<div class="form__field">
-			<label class="form__label" for="edit-project-delivery">Expected delivery date</label>
+			<label class="form__label" for="edit-project-delivery">Delivery date</label>
 			<DatePicker
 				id="edit-project-delivery"
 				value={pDelivery}
 				onChange={(v) => (pDelivery = v)}
 				disabled={savingProject}
-				ariaLabel="Expected delivery date"
+				ariaLabel="Delivery date"
 			/>
 		</div>
 

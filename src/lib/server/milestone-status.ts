@@ -11,8 +11,11 @@ import { computeMilestoneProgress } from '$lib/progress';
 //     scope can't trip completion early.
 //   - any timeline item that is actively being worked on
 //     (`in_progress` | `waiting_for_client` | `under_review`) → `in_progress`.
-//   - has at least one timeline item, none active, not all-complete → `open`
-//     ("has updates but not really started yet").
+//   - every item still `not_started` → `not_started` (nothing has started yet — this
+//     is what a freshly seeded project's milestones look like, so they read as
+//     "Upcoming" to the client rather than "In progress").
+//   - has ≥1 item, none active, some touched but not all complete → `open`
+//     ("has updates but not really finished yet").
 //   - no timeline items → `not_started`.
 //
 // The admin can still manually override the status; that pick persists until the
@@ -31,6 +34,7 @@ export function deriveMilestoneStatus(
 	if (timelineStatuses.length === 0) return 'not_started';
 	if (scopeFinalized && timelineStatuses.every((s) => s === 'completed')) return 'completed';
 	if (timelineStatuses.some((s) => ACTIVE_TIMELINE_STATUSES.has(s))) return 'in_progress';
+	if (timelineStatuses.every((s) => s === 'not_started')) return 'not_started';
 	return 'open';
 }
 

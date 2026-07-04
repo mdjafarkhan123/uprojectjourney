@@ -40,7 +40,7 @@
 	<div class="sidebar__inner">
 		<div class="sidebar__brand">
 			<i class="ri-route-line sidebar__brand-icon" aria-hidden="true"></i>
-			<span class="sidebar__brand-name">Client Journey</span>
+			<span class="sidebar__brand-name">Porject Management</span>
 		</div>
 
 		<nav class="sidebar__nav" aria-label="Admin">

@@ -1,6 +1,37 @@
 @use './lib/styles/tokens.scss';
 @use './lib/styles/portal.scss';
 
+// Self-hosted Geist (woff2, latin subset) — served from /static/fonts.
+// `swap` shows fallback text immediately, then swaps to Geist once loaded.
+@font-face {
+	font-family: 'Geist';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('/fonts/geist-v5-latin-regular.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'Geist';
+	font-style: normal;
+	font-weight: 500;
+	font-display: swap;
+	src: url('/fonts/geist-v5-latin-500.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'Geist';
+	font-style: normal;
+	font-weight: 600;
+	font-display: swap;
+	src: url('/fonts/geist-v5-latin-600.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'Geist';
+	font-style: normal;
+	font-weight: 700;
+	font-display: swap;
+	src: url('/fonts/geist-v5-latin-700.woff2') format('woff2');
+}
+
 *,
 *::before,
 *::after {
@@ -15,7 +46,7 @@ body {
 
 body {
 	font-family:
-		'Inter',
+		'Geist',
 		system-ui,
 		-apple-system,
 		'Segoe UI',

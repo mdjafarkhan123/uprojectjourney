@@ -11,10 +11,10 @@
 // All dark-mode overrides live in one mixin so we can apply them from several
 // selectors without duplication.
 @mixin dark-tokens {
-	--neutral-primary-soft: #101828;
+	--neutral-primary-soft: #171b1c;
 	--neutral-primary: #030712;
 	--neutral-primary-medium: #1e2939;
-	--neutral-secondary-soft: #101828;
+	--neutral-secondary-soft: #232b2f;
 	--neutral-secondary: #030712;
 	--neutral-secondary-medium: #1e2939;
 	--neutral-tertiary-soft: #101828;
@@ -34,7 +34,7 @@
 	--danger: #c70036;
 	--danger-medium: #8b0836;
 	--danger-strong: #a50036;
-	--warning-soft: #7c2d12;
+	--warning-soft: #291900;
 	--warning: #f97316;
 	--warning-medium: #7c2d12;
 	--warning-strong: #c2410c;
@@ -49,7 +49,7 @@
 	--text-white: #ffffff;
 	--text-black: #111827;
 	--text-heading: #ffffff;
-	--text-body: #9ca3af;
+	--text-body: #abafb6;
 	--text-body-subtle: #9ca3af;
 	--fg-danger: #f43f5e;
 	--fg-success: #00ffb7;
@@ -68,7 +68,7 @@
 
 :root {
 	// --- Background: neutral ---
-	--neutral-primary-soft: #ffffff;
+	--neutral-primary-soft: #f3f3f3;
 	--neutral-primary: #ffffff;
 	--neutral-primary-medium: #ffffff;
 	--neutral-secondary-soft: #f9fafb;
@@ -76,12 +76,12 @@
 	--neutral-secondary-medium: #f9fafb;
 	--neutral-tertiary-soft: #f3f4f6;
 	--neutral-tertiary: #f3f4f6;
-	--neutral-tertiary-medium: #f3f4f6;
+	--neutral-tertiary-medium: #e9e9e9;
 	--neutral-quaternary: #e5e7eb;
 
 	// --- Background: brand ---
 	--brand-softest: #e6f5f0;
-	--brand-softer: #b7e7d2;
+	--brand-softer: #c2f0dc;
 	--brand-soft: #73caa3;
 	--brand: #00c569;
 	--brand-medium: #68cea0;

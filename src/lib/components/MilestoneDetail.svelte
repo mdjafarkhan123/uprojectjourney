@@ -337,7 +337,7 @@
 			padding: 14px 16px;
 			background-color: var(--neutral-primary-soft);
 			border: 1px solid var(--tl-bd, var(--border-default));
-			border-left: 3px solid var(--tl-fg, var(--border-default));
+			border-left: 5px solid var(--tl-fg, var(--border-default));
 			border-radius: var(--radius-base);
 			box-shadow: var(--shadow-xs);
 		}

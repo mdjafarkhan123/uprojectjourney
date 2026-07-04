@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { supabaseAdmin } from '$lib/server/supabase-admin';
 import { hashPassword } from '$lib/server/password';
 import { createSession, SESSION_COOKIE } from '$lib/server/session';
+import { seedDefaultTemplatesForAdmin } from '$lib/server/default-templates';
 
 // Public admin self-signup. No email verification (V1 override). Runs with the
 // service-role client because the caller is unauthenticated — RLS on `users`
@@ -72,6 +73,15 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		}
 		console.error('[signup] create failed:', error);
 		return json({ message: 'Could not create your account. Please try again.' }, { status: 500 });
+	}
+
+	// Seed this admin's private, editable copies of the default templates.
+	// Non-fatal: a seeding hiccup must not block account creation — they can be
+	// backfilled — so we log and continue rather than 500 the signup.
+	try {
+		await seedDefaultTemplatesForAdmin(supabaseAdmin, user.id);
+	} catch (seedErr) {
+		console.error('[signup] template seeding failed for', user.id, seedErr);
 	}
 
 	const { token, expiresAt } = await createSession(user.id);

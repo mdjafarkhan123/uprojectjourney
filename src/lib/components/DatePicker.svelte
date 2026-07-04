@@ -35,6 +35,7 @@
 
 <DatePicker.Root
 	weekdayFormat="short"
+	locale="en-GB"
 	fixedWeeks
 	{disabled}
 	value={selected}

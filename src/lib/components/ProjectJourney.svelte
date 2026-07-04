@@ -297,7 +297,7 @@
 
 			<div class="tile">
 				<dt class="tile__label">
-					<i class="ri-calendar-check-line" aria-hidden="true"></i> Expected delivery
+					<i class="ri-calendar-check-line" aria-hidden="true"></i> Delivery date
 				</dt>
 				<dd class="tile__value">
 					{formatDate(project.expected_delivery_date)}

@@ -80,7 +80,7 @@ Full patterns live in the skills — these are the guardrails.
    it resolves. No silent waits.
 4. **bits-ui for interactive primitives** (calendar, date/time picker, dropdown, select, dialog…).
    If one doesn't exist, build it accessibly. (bits-ui is not yet installed — get approval first.)
-5. **SSR & CSR by need, performance first.** Don't ship data a page doesn't use.
+5. **SSR & CSR Hybrid application, performance first.** Don't ship data a page doesn't use. First app load should be SSR. Internal navigation should be CSR like Dahsboard, Clients, Projects etc..., . in CSR routing there would be no DB trip, no server page like '+page.server.ts' or something like this. Pure CSR with Shell render only with loading animation then import/load all data.
 6. **Server isolation is absolute.** `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_JWT_SECRET` live only
    in server code (`$lib/server/*`, `hooks.server.ts`, `+server.ts`) — never in `.svelte` or
    `+page.ts`. All writes go through `/api/*`. `$lib/server/*` is never imported in `.svelte` files.
@@ -156,3 +156,20 @@ checks. Then ask: **"Task done. Anything you have in mind?"**
 - No reusable abstractions until duplication is proven across 3+ use cases.
 - Every `POST` and `PATCH` route validates its input with **Zod** (not yet installed — add with
   approval when API work begins). Reject invalid data before it touches the database.
+
+---
+
+## Drag-and-Drop (reordering)
+
+Any new sortable list MUST use the shared pieces — do NOT hand-roll a new one:
+
+- **Actions:** `dragHandleZone` + `dragHandle` from `svelte-dnd-action` (a grip handle so row
+  clicks/links still work). **Never** the "`dndzone` + toggle `dragDisabled` from an `onmousedown`
+  handle" pattern: Svelte 5 delegates `onmousedown` to the app root, so the grab misses on the first
+  try (the notorious "works on the 2nd grab / click twice" bug). If you don't need a handle, plain
+  `use:dndzone` with the default `dragDisabled: false` (whole-row drag) is also safe.
+- **Controller + modal:** every reorder is save-confirmed, never silent. Use
+  `createReorderConfirm()` from `$lib/data/reorder.svelte.ts` (owns the pre-drag snapshot, the
+  confirm state, and commit-only-after-every-PATCH-succeeds) wired to `<ReorderConfirmModal>`. Rows
+  need `{ id: string; position: number }`; the API PATCH takes `{ position }`. See `TemplatesTab.svelte`
+  and `settings/templates/[id]/+page.svelte` for reference wiring.

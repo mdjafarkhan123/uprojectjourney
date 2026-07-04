@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
+	import { goto, invalidateAll } from '$app/navigation';
 	import Skeleton from '$lib/components/Skeleton.svelte';
+	import TemplatesTab from '$lib/components/TemplatesTab.svelte';
 	import { query } from '$lib/data/cache.svelte';
 	import type { PageData } from './$types';
 
@@ -18,6 +21,33 @@
 	// A sensible default for the native color picker when no brand color is set —
 	// this is display-only; the stored value stays empty unless the admin picks one.
 	const COLOR_FALLBACK = '#2563eb';
+
+	// --- Tabs (state mirrored into ?tab= so it survives refresh and is linkable).
+	// Pure client-side: the layout load reads nothing from `url`, so switching tabs
+	// never triggers a server round-trip. ---
+	type Tab = 'general' | 'branding' | 'templates';
+	const tabs: { id: Tab; label: string; icon: string }[] = [
+		{ id: 'general', label: 'General', icon: 'ri-user-settings-line' },
+		{ id: 'branding', label: 'Branding', icon: 'ri-palette-line' },
+		{ id: 'templates', label: 'Templates', icon: 'ri-stack-line' }
+	];
+
+	function tabFromUrl(): Tab {
+		const t = page.url.searchParams.get('tab');
+		return t === 'branding' || t === 'templates' ? t : 'general';
+	}
+	let activeTab = $state<Tab>(tabFromUrl());
+
+	function selectTab(t: Tab) {
+		activeTab = t;
+		const href =
+			t === 'branding'
+				? resolve('/master/settings?tab=branding')
+				: t === 'templates'
+					? resolve('/master/settings?tab=templates')
+					: resolve('/master/settings');
+		goto(href, { replaceState: true, keepFocus: true, noScroll: true });
+	}
 
 	// --- Profile (seeded once from the already-SSR'd layout data — no extra fetch).
 	// We deliberately capture only the initial values (untrack); the form owns its
@@ -154,13 +184,30 @@
 	<header class="page__header">
 		<div>
 			<h1 class="page__heading">Settings</h1>
-			<p class="page__subheading">Manage your profile and the branding your clients see.</p>
+			<p class="page__subheading">
+				Manage your profile, the branding your clients see, and your project templates.
+			</p>
 		</div>
 	</header>
 
-	<div class="settings">
-		<!-- Profile -->
-		<section class="card" aria-labelledby="profile-heading">
+	<div class="tabs" role="tablist" aria-label="Settings sections">
+		{#each tabs as tab (tab.id)}
+			<button
+				class="tabs__tab"
+				class:tabs__tab--active={activeTab === tab.id}
+				type="button"
+				role="tab"
+				aria-selected={activeTab === tab.id}
+				onclick={() => selectTab(tab.id)}
+			>
+				<i class={tab.icon} aria-hidden="true"></i>
+				<span>{tab.label}</span>
+			</button>
+		{/each}
+	</div>
+
+	{#if activeTab === 'general'}
+		<section class="card card--form" aria-labelledby="profile-heading">
 			<div class="card__head">
 				<h2 class="card__title" id="profile-heading">Profile</h2>
 				<p class="card__desc">Your name and sign-in details.</p>
@@ -249,9 +296,8 @@
 				</div>
 			</form>
 		</section>
-
-		<!-- Branding -->
-		<section class="card" aria-labelledby="branding-heading">
+	{:else if activeTab === 'branding'}
+		<section class="card card--form" aria-labelledby="branding-heading">
 			<div class="card__head">
 				<h2 class="card__title" id="branding-heading">Branding</h2>
 				<p class="card__desc">
@@ -378,13 +424,15 @@
 				</form>
 			{/if}
 		</section>
-	</div>
+	{:else}
+		<TemplatesTab />
+	{/if}
 </section>
 
 <style lang="scss">
 	.page {
 		&__header {
-			margin-bottom: 32px;
+			margin-bottom: 24px;
 		}
 
 		&__heading {
@@ -402,12 +450,49 @@
 		}
 	}
 
-	.settings {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-		gap: 24px;
-		align-items: start;
-		max-width: 900px;
+	.tabs {
+		display: flex;
+		gap: 4px;
+		margin-bottom: 28px;
+		border-bottom: 1px solid var(--border-default);
+		overflow-x: auto;
+
+		&__tab {
+			display: inline-flex;
+			align-items: center;
+			gap: 8px;
+			padding: 10px 14px;
+			margin-bottom: -1px;
+			font-family: inherit;
+			font-size: 14px;
+			font-weight: 500;
+			white-space: nowrap;
+			color: var(--text-body);
+			background-color: transparent;
+			border: none;
+			border-bottom: 2px solid transparent;
+			cursor: pointer;
+			transition: color 200ms;
+
+			i {
+				font-size: 18px;
+			}
+
+			&:hover {
+				color: var(--text-heading);
+			}
+
+			&:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 3px var(--brand-medium);
+				border-radius: var(--radius-base);
+			}
+
+			&--active {
+				color: var(--fg-brand);
+				border-bottom-color: var(--brand);
+			}
+		}
 	}
 
 	.card {
@@ -416,6 +501,10 @@
 		border: 1px solid var(--border-default);
 		border-radius: var(--radius-base);
 		box-shadow: var(--shadow-xs);
+
+		&--form {
+			max-width: 560px;
+		}
 
 		&__head {
 			margin-bottom: 20px;
