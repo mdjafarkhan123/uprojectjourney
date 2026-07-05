@@ -32,10 +32,20 @@ type RawJourney = {
 	milestones: RawMilestone[];
 };
 
-export const load: LayoutServerLoad = async ({ params, depends }) => {
+export const load: LayoutServerLoad = async ({ params, depends, setHeaders }) => {
 	// Tag this load so the public shell can re-run it on a timer (live updates):
 	// `invalidate('public:journey')` re-fetches the RPC and refreshes the page.
 	depends('public:journey');
+
+	// The shared link is anonymous and identical for every visitor of the same
+	// username/slug (no cookies affect the output), so let the CDN edge-cache it
+	// briefly. A hot/viral link then serves from the edge instead of round-tripping
+	// the RPC on every hit. `s-maxage` is CDN-only; `stale-while-revalidate` serves
+	// the cached copy instantly while refreshing in the background. The client still
+	// polls every ~15s for live updates, so 30s of edge staleness is invisible.
+	setHeaders({
+		'cache-control': 'public, max-age=0, s-maxage=30, stale-while-revalidate=60'
+	});
 
 	const { data, error: rpcError } = await supabaseAnon.rpc('get_public_journey', {
 		p_username: params.username,

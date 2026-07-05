@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { Dialog } from 'bits-ui';
+	import type { Component } from 'svelte';
 	import type { Attachment } from 'svelte/attachments';
 	import ProgressRing from '$lib/components/ProgressRing.svelte';
 	import type { PortalProject } from '$lib/portal/types';
@@ -74,17 +74,18 @@
 		});
 	});
 
-	// The bare host of a link, shown under its label as a lightweight "where this goes"
-	// cue. Falls back to the raw string if it somehow isn't a parseable URL.
-	function linkHost(url: string): string {
-		try {
-			return new URL(url).host;
-		} catch {
-			return url;
-		}
-	}
-
+	// The "Live preview" panel is bits-ui-powered, so we DON'T ship it on first load:
+	// the trigger below is a plain SSR button, and the panel component (with bits-ui)
+	// is dynamically imported the first time the client opens it. Keeps bits-ui off
+	// the public/client page's initial hydration bundle.
 	let previewOpen = $state(false);
+	let PreviewLinks = $state<Component<{ links: typeof previewLinks; open: boolean }> | null>(null);
+	async function openPreview() {
+		if (!PreviewLinks) {
+			PreviewLinks = (await import('$lib/components/PreviewLinks.svelte')).default;
+		}
+		previewOpen = true;
+	}
 
 	// The journey's finish line: the whole point of the tracker. When the project is
 	// done we swap the routine "waiting/latest" chrome for a single celebratory banner —
@@ -235,44 +236,15 @@
 		     section) so the overview card stays short and the journey card still peeks
 		     below the fold on mobile. -->
 		{#if previewLinks.length > 0}
-			<Dialog.Root bind:open={previewOpen}>
-				<Dialog.Trigger class="preview-pill">
-					<i class="ri-global-line preview-pill__icon" aria-hidden="true"></i>
-					<span class="preview-pill__label">Live preview</span>
-					<span class="preview-pill__count">{previewLinks.length}</span>
-					<i class="ri-arrow-right-up-line preview-pill__arrow" aria-hidden="true"></i>
-				</Dialog.Trigger>
-				<Dialog.Portal>
-					<Dialog.Overlay class="preview-overlay" />
-					<Dialog.Content class="preview-sheet">
-						<div class="preview-sheet__head">
-							<Dialog.Title class="preview-sheet__title">
-								<i class="ri-global-line" aria-hidden="true"></i>
-								Live preview links
-							</Dialog.Title>
-							<Dialog.Close class="preview-sheet__close" aria-label="Close">
-								<i class="ri-close-line" aria-hidden="true"></i>
-							</Dialog.Close>
-						</div>
-						<ul class="preview-list">
-							{#each previewLinks as link (link.id)}
-								<li class="preview-list__item">
-									<!-- Admin-authored external URL in a new tab — resolve() is for internal routes only. -->
-									<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-									<a class="preview-link" href={link.url} target="_blank" rel="noopener noreferrer">
-										<span class="preview-link__body">
-											<span class="preview-link__label">{link.label}</span>
-											<span class="preview-link__host">{linkHost(link.url)}</span>
-											<span class="preview-link__source">from “{link.updateTitle}”</span>
-										</span>
-										<i class="ri-external-link-line preview-link__icon" aria-hidden="true"></i>
-									</a>
-								</li>
-							{/each}
-						</ul>
-					</Dialog.Content>
-				</Dialog.Portal>
-			</Dialog.Root>
+			<button type="button" class="preview-pill" onclick={openPreview}>
+				<i class="ri-global-line preview-pill__icon" aria-hidden="true"></i>
+				<span class="preview-pill__label">Live preview</span>
+				<span class="preview-pill__count">{previewLinks.length}</span>
+				<i class="ri-arrow-right-up-line preview-pill__arrow" aria-hidden="true"></i>
+			</button>
+			{#if PreviewLinks}
+				<PreviewLinks links={previewLinks} bind:open={previewOpen} />
+			{/if}
 		{/if}
 
 		<dl class="overview__grid">
