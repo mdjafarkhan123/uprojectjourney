@@ -219,15 +219,13 @@
 			<div class="latest" role="note">
 				<i class="ri-notification-badge-line latest__icon" aria-hidden="true"></i>
 				<div class="latest__body">
-					<span class="latest__label">Latest update</span>
-					<span class="latest__title">Task: {latest.title}</span>
-					{#if updatedByName}
-						<span class="latest__by">by {updatedByName}</span>
-					{/if}
+					<span class="latest__label"
+						>Last updated: <span class="latest__time" title={formatDateTime(lastActivity)}>
+							{formatRelative(lastActivity)}
+						</span>
+						by {updatedByName}</span
+					>
 				</div>
-				<span class="latest__time" title={formatDateTime(lastActivity)}>
-					{formatRelative(lastActivity)}
-				</span>
 			</div>
 		{/if}
 
@@ -248,18 +246,6 @@
 		{/if}
 
 		<dl class="overview__grid">
-			<div class="tile">
-				<dt class="tile__label">
-					<i class="ri-focus-3-line" aria-hidden="true"></i> Current focus
-				</dt>
-				<dd class="tile__value">
-					{overview.currentFocusTitle}
-					{#if overview.currentFocusGoal}
-						<span class="tile__sub">{overview.currentFocusGoal}</span>
-					{/if}
-				</dd>
-			</div>
-
 			<div class="tile">
 				<dt class="tile__label">
 					<i class="ri-calendar-line" aria-hidden="true"></i> Started
@@ -900,7 +886,7 @@
 			'marker date'
 			'marker more';
 		align-items: center;
-		gap: 0 16px;
+		gap: 0 32px;
 		padding-bottom: 28px;
 		text-decoration: none;
 		border-radius: var(--radius-base);

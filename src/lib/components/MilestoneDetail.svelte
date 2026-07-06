@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { Milestone } from '$lib/portal/types';
 	import {
 		milestoneStatusLabel,
@@ -32,6 +33,15 @@
 	const shownUpdates = $derived(
 		showAllUpcoming ? milestone.timeline_updates : visibleTimelineItems(milestone.timeline_updates)
 	);
+
+	// Each timeline card's description is collapsed by default so the timeline reads as a
+	// scannable list of titles; the client taps a card's title (accordion) to reveal its
+	// detail. We track the open cards by id — only cards that HAVE a description get a toggle.
+	const openDescriptions = new SvelteSet<string>();
+	function toggleDescription(id: string) {
+		if (openDescriptions.has(id)) openDescriptions.delete(id);
+		else openDescriptions.add(id);
+	}
 </script>
 
 <header class="card header header--{nodeState(milestone)}">
@@ -114,9 +124,26 @@
 								</span>
 							{/if}
 						</div>
-						<p class="tl__title">{u.title}</p>
 						{#if u.description}
-							<p class="tl__desc">{u.description}</p>
+							{@const isOpen = openDescriptions.has(u.id)}
+							<button
+								type="button"
+								class="tl__title tl__title--toggle"
+								aria-expanded={isOpen}
+								onclick={() => toggleDescription(u.id)}
+							>
+								<span class="tl__title-text">{u.title}</span>
+								<i
+									class="ri-arrow-down-s-line tl__title-chevron"
+									class:tl__title-chevron--open={isOpen}
+									aria-hidden="true"
+								></i>
+							</button>
+							{#if isOpen}
+								<p class="tl__desc">{u.description}</p>
+							{/if}
+						{:else}
+							<p class="tl__title">{u.title}</p>
 						{/if}
 						{#if u.status === 'waiting_for_client' && u.required_action}
 							<div class="tl__action" role="note">
@@ -344,7 +371,7 @@
 			column-gap: 14px;
 
 			&--completed {
-				--tl-bg: white;
+				--tl-bg: var(--success-soft);
 				--tl-fg: var(--fg-success);
 				--tl-bd: var(--border-success);
 			}
@@ -437,6 +464,9 @@
 		&__item--completed &__node i {
 			animation: tl-pop 520ms ease-out both;
 		}
+		&__item--completed .tl__card {
+			background-color: var(--success-soft);
+		}
 
 		&__card {
 			grid-column: 2;
@@ -486,6 +516,49 @@
 			font-weight: 600;
 			line-height: 1.35;
 			color: var(--text-heading);
+		}
+
+		// Accordion trigger: the title becomes a full-width button when the card has a
+		// description. Resets the native button chrome, keeps the title text left and the
+		// chevron on the right, and rotates the chevron when open.
+		&__title--toggle {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 10px;
+			width: 100%;
+			padding: 0;
+			font-family: inherit;
+			text-align: left;
+			background: none;
+			border: none;
+			cursor: pointer;
+
+			&:focus-visible {
+				outline: none;
+				box-shadow: 0 0 0 3px var(--brand-medium);
+				border-radius: var(--radius-base);
+			}
+
+			&:hover .tl__title-text {
+				color: var(--brand);
+			}
+		}
+
+		&__title-text {
+			transition: color 200ms;
+		}
+
+		&__title-chevron {
+			flex-shrink: 0;
+			font-size: 20px;
+			line-height: 1;
+			color: var(--text-body-subtle);
+			transition: transform 200ms ease;
+
+			&--open {
+				transform: rotate(180deg);
+			}
 		}
 
 		&__desc {
